@@ -64,7 +64,7 @@ model Post {
   cta     String?
 
   // Copywriter output — document fields (ADR-0001)
-  // slides: [{ heading, description, imageIdeas: [{ type, text }] }]
+  // slides: [{ heading, description, imageIdeas: [{ type, idea }] }]
   // reviewFlags: [{ claim, reason }]
   slides      Json?
   hashtags    Json?

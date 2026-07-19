@@ -55,14 +55,14 @@ describe("data model: Client → Plan → Posts round-trip", () => {
         heading: "Bleeding gums? Read this",
         description: "3 causes you can spot at home",
         imageIdeas: [
-          { type: "photo", text: "close-up of healthy vs inflamed gumline" },
-          { type: "creative", text: "icon trio: floss, brush, rinse" },
+          { type: "photo", idea: "close-up of healthy vs inflamed gumline" },
+          { type: "creative", idea: "icon trio: floss, brush, rinse" },
         ],
       },
       {
         heading: "Cause 1",
         description: "Plaque buildup along the gumline",
-        imageIdeas: [{ type: "creative", text: "diagram of plaque layer" }],
+        imageIdeas: [{ type: "creative", idea: "diagram of plaque layer" }],
       },
     ];
 
