@@ -13,8 +13,15 @@ export default function NewClientPage() {
 
   return (
     <Shell>
-      <div className="flex flex-col gap-4">
-        <h2 className="text-text">Onboard a clinic</h2>
+      {/* Narrower than the shell's container: a single-column form reads badly
+          at full width, which is what it did before #14. */}
+      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-text">Onboard a clinic</h1>
+          <p className="text-sm text-muted">
+            Everything the planner and copywriter need to write in this clinic&apos;s voice.
+          </p>
+        </div>
         <ClientForm
           onSubmit={async (values) => {
             const result = await saveClient(values);

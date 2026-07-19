@@ -12,6 +12,7 @@ const config: Config = {
       fontFamily: tailwindTheme.fontFamily,
       borderRadius: tailwindTheme.borderRadius,
       spacing: tailwindTheme.spacing,
+      boxShadow: tailwindTheme.boxShadow,
     },
   },
   plugins: [],

@@ -14,46 +14,98 @@
 
 export type TokenMap = Record<string, string>;
 
-// The PRD's canonical token names. Light and dark use the SAME names — only the
+// The canonical token names. Light and dark use the SAME names — only the
 // values differ — so a component's `text-text` / `bg-surface` classes work in
 // both modes without per-mode styling.
+//
+// Note the pairing convention: every FILLED background (`--color-primary`,
+// `--color-accent`) has a matching foreground (`--color-on-primary`,
+// `--color-on-accent`). A component painting a fill never has to guess whether
+// light or dark text reads on it — which matters because the per-Client brand
+// overlay can replace `--color-accent` with an arbitrary clinic color.
 export const CANONICAL_TOKEN_NAMES = [
   "--color-primary",
+  "--color-on-primary",
   "--color-accent",
+  "--color-on-accent",
   "--color-surface",
+  "--color-surface-raised",
   "--color-text",
-  "--color-muted",
+  "--color-text-muted",
+  "--color-border",
+  "--color-success",
+  "--color-warning",
+  "--color-danger",
   "--radius",
+  "--radius-sm",
+  "--radius-pill",
   "--font-sans",
   "--space-1",
   "--space-2",
+  "--space-3",
   "--space-4",
+  "--space-5",
+  "--space-6",
+  "--space-7",
+  "--shadow-sm",
+  "--shadow-md",
 ] as const;
 
-export const lightTokens: TokenMap = {
-  "--color-primary": "#0A6E7C",
-  "--color-accent": "#F4A340",
-  "--color-surface": "#FFFFFF",
-  "--color-text": "#16292B",
-  "--color-muted": "#5B6E70",
-  "--radius": "12px",
-  "--font-sans": "Inter, ui-sans-serif, system-ui, sans-serif",
+// Values that do not change between light and dark: the geometry and type
+// scale. Kept in one place so a radius or spacing edit can't drift between the
+// two modes.
+const structuralTokens: TokenMap = {
+  "--radius": "8px",
+  "--radius-sm": "calc(var(--radius) - 3px)",
+  "--radius-pill": "999px",
+  "--font-sans": 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
   "--space-1": "4px",
   "--space-2": "8px",
+  "--space-3": "12px",
   "--space-4": "16px",
+  "--space-5": "24px",
+  "--space-6": "32px",
+  "--space-7": "48px",
+};
+
+export const lightTokens: TokenMap = {
+  "--color-primary": "#0f766e",
+  "--color-on-primary": "#ffffff",
+  "--color-accent": "#0e7490",
+  "--color-on-accent": "#ffffff",
+  "--color-surface": "#f0f5f5",
+  "--color-surface-raised": "#ffffff",
+  "--color-text": "#13292d",
+  "--color-text-muted": "#5d7578",
+  "--color-border": "#d8e2e2",
+  "--color-success": "#15803d",
+  "--color-warning": "#a16207",
+  "--color-danger": "#b91c1c",
+  ...structuralTokens,
+  // Shadows tint with the text color in light mode, so they read as depth
+  // rather than as a grey smear over a tinted surface.
+  "--shadow-sm": "0 1px 2px color-mix(in srgb, var(--color-text) 7%, transparent)",
+  "--shadow-md": "0 16px 48px color-mix(in srgb, var(--color-text) 24%, transparent)",
 };
 
 export const darkTokens: TokenMap = {
-  "--color-primary": "#2BB5C7",
-  "--color-accent": "#F4A340",
-  "--color-surface": "#0F1A1B",
-  "--color-text": "#E8F1F2",
-  "--color-muted": "#9DB4B6",
-  "--radius": "12px",
-  "--font-sans": "Inter, ui-sans-serif, system-ui, sans-serif",
-  "--space-1": "4px",
-  "--space-2": "8px",
-  "--space-4": "16px",
+  "--color-primary": "#2fbfae",
+  "--color-on-primary": "#06211e",
+  "--color-accent": "#26b6cf",
+  "--color-on-accent": "#04222a",
+  "--color-surface": "#0e1719",
+  "--color-surface-raised": "#152225",
+  "--color-text": "#e4eeee",
+  "--color-text-muted": "#93a8aa",
+  "--color-border": "#26383b",
+  "--color-success": "#3ecf8e",
+  "--color-warning": "#e0b13c",
+  "--color-danger": "#f37272",
+  ...structuralTokens,
+  // In dark mode the text color is near-white, so tinting the shadow with it
+  // would lighten rather than deepen. Shadows go to true black instead.
+  "--shadow-sm": "0 1px 2px color-mix(in srgb, #000 40%, transparent)",
+  "--shadow-md": "0 16px 48px color-mix(in srgb, #000 60%, transparent)",
 };
 
 // Tailwind theme, mapped to the CSS var NAMES (not values). The values stay in
@@ -61,21 +113,41 @@ export const darkTokens: TokenMap = {
 export const tailwindTheme = {
   colors: {
     primary: "var(--color-primary)",
+    "on-primary": "var(--color-on-primary)",
     accent: "var(--color-accent)",
+    "on-accent": "var(--color-on-accent)",
     surface: "var(--color-surface)",
+    "surface-raised": "var(--color-surface-raised)",
     text: "var(--color-text)",
-    muted: "var(--color-muted)",
+    // Keyed `muted` (not `text-muted`) so call sites read `text-muted`, not
+    // `text-text-muted`. The TOKEN name stays `--color-text-muted` — it is
+    // muted *text*, never a border. Borders use `border-border` below.
+    muted: "var(--color-text-muted)",
+    border: "var(--color-border)",
+    success: "var(--color-success)",
+    warning: "var(--color-warning)",
+    danger: "var(--color-danger)",
   },
   fontFamily: {
     sans: "var(--font-sans)",
   },
   borderRadius: {
     DEFAULT: "var(--radius)",
+    sm: "var(--radius-sm)",
+    pill: "var(--radius-pill)",
   },
   spacing: {
     1: "var(--space-1)",
     2: "var(--space-2)",
+    3: "var(--space-3)",
     4: "var(--space-4)",
+    5: "var(--space-5)",
+    6: "var(--space-6)",
+    7: "var(--space-7)",
+  },
+  boxShadow: {
+    sm: "var(--shadow-sm)",
+    md: "var(--shadow-md)",
   },
 } as const;
 

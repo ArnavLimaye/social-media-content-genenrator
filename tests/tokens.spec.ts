@@ -17,6 +17,67 @@ import tailwindConfig from "@/tailwind.config";
 // Tailwind's theme references the CSS vars (not hardcoded values), and the
 // generated CSS carries the values from the same module.
 
+// Behavior 1 (issue #7 — design lock) — the token VALUES are finalized.
+//
+// The mechanism landed in #2; this pins the concrete palette, radii, typography
+// and spacing approved from the operator's prototype ("teal clinical" set), so
+// the rich Board work in #8/#9 builds against a settled baseline. These are
+// deliberately exact-value assertions: the point of a design lock is that a
+// value change is a visible, reviewed diff, not an accident.
+
+describe("theme tokens: the locked design values", () => {
+  it("commits the approved light palette", () => {
+    expect(lightTokens["--color-primary"]).toBe("#0f766e");
+    expect(lightTokens["--color-accent"]).toBe("#0e7490");
+    expect(lightTokens["--color-surface"]).toBe("#f0f5f5");
+    expect(lightTokens["--color-surface-raised"]).toBe("#ffffff");
+    expect(lightTokens["--color-text"]).toBe("#13292d");
+    expect(lightTokens["--color-text-muted"]).toBe("#5d7578");
+    expect(lightTokens["--color-border"]).toBe("#d8e2e2");
+  });
+
+  it("commits the approved dark palette", () => {
+    expect(darkTokens["--color-primary"]).toBe("#2fbfae");
+    expect(darkTokens["--color-accent"]).toBe("#26b6cf");
+    expect(darkTokens["--color-surface"]).toBe("#0e1719");
+    expect(darkTokens["--color-surface-raised"]).toBe("#152225");
+    expect(darkTokens["--color-text"]).toBe("#e4eeee");
+    expect(darkTokens["--color-text-muted"]).toBe("#93a8aa");
+    expect(darkTokens["--color-border"]).toBe("#26383b");
+  });
+
+  it("carries a foreground token for every filled background, so text on a fill is never guesswork", () => {
+    for (const tokens of [lightTokens, darkTokens]) {
+      expect(tokens["--color-on-primary"]).toBeTruthy();
+      expect(tokens["--color-on-accent"]).toBeTruthy();
+      // a fill and its foreground must actually differ
+      expect(tokens["--color-on-primary"]).not.toBe(tokens["--color-primary"]);
+      expect(tokens["--color-on-accent"]).not.toBe(tokens["--color-accent"]);
+    }
+  });
+
+  it("carries the status colors the Post card needs for flags and lifecycle", () => {
+    for (const tokens of [lightTokens, darkTokens]) {
+      expect(tokens["--color-success"]).toBeTruthy();
+      expect(tokens["--color-warning"]).toBeTruthy();
+      expect(tokens["--color-danger"]).toBeTruthy();
+    }
+  });
+
+  it("commits the radius and spacing scale", () => {
+    expect(lightTokens["--radius"]).toBe("8px");
+    expect(lightTokens["--radius-sm"]).toBe("calc(var(--radius) - 3px)");
+    expect(lightTokens["--radius-pill"]).toBe("999px");
+    expect(lightTokens["--space-1"]).toBe("4px");
+    expect(lightTokens["--space-7"]).toBe("48px");
+  });
+
+  it("no longer carries --color-muted, which ambiguously meant both border and muted text", () => {
+    expect(lightTokens).not.toHaveProperty("--color-muted");
+    expect(darkTokens).not.toHaveProperty("--color-muted");
+  });
+});
+
 describe("theme tokens: single source of truth", () => {
   it("defines the canonical token names in both light and dark", () => {
     for (const name of CANONICAL_TOKEN_NAMES) {
@@ -53,6 +114,31 @@ describe("theme tokens: single source of truth", () => {
     // no Tailwind theme value smuggles in a raw hex color
     const allValues = JSON.stringify(tailwindTheme);
     expect(allValues).not.toMatch(/#[0-9a-fA-F]{3,8}/);
+  });
+
+  it("exposes every locked token to Tailwind as a var, so components never need arbitrary values", () => {
+    // the split that replaced the ambiguous `muted`
+    expect(tailwindTheme.colors.border).toBe("var(--color-border)");
+    // keyed `muted` so call sites read `text-muted` rather than `text-text-muted`
+    expect(tailwindTheme.colors.muted).toBe("var(--color-text-muted)");
+    expect(tailwindTheme.colors["surface-raised"]).toBe("var(--color-surface-raised)");
+    // foregrounds for filled backgrounds
+    expect(tailwindTheme.colors["on-primary"]).toBe("var(--color-on-primary)");
+    expect(tailwindTheme.colors["on-accent"]).toBe("var(--color-on-accent)");
+    // status colors the Post card's flag + lifecycle treatment needs
+    expect(tailwindTheme.colors.warning).toBe("var(--color-warning)");
+    // geometry
+    expect(tailwindTheme.borderRadius.sm).toBe("var(--radius-sm)");
+    expect(tailwindTheme.borderRadius.pill).toBe("var(--radius-pill)");
+    expect(tailwindTheme.spacing[7]).toBe("var(--space-7)");
+    expect(tailwindTheme.boxShadow.sm).toBe("var(--shadow-sm)");
+  });
+
+  it("maps a Tailwind name for every canonical token, so none is unreachable from a class", () => {
+    const exposed = JSON.stringify(tailwindTheme);
+    for (const name of CANONICAL_TOKEN_NAMES) {
+      expect(exposed, `${name} is not reachable from any Tailwind utility`).toContain(`var(${name})`);
+    }
   });
 
   it("is the source the Tailwind config actually consumes", () => {

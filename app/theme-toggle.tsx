@@ -16,7 +16,7 @@ export function ThemeToggle() {
       type="button"
       aria-label="Toggle theme"
       onClick={toggle}
-      className="rounded border border-muted px-2 py-1 text-text"
+      className="rounded border border-border px-2 py-1 text-text"
     >
       Theme
     </button>
