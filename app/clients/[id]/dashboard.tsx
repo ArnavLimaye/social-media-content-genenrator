@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Client } from "@/generated/prisma/client";
+import { Card, ClinicTile, MicroLabel } from "@/app/ui";
 
 // The Client dashboard (issue #6). Shows the clinic's identity and a
 // "Generate this week" button, and honestly handles every generation state
@@ -9,8 +10,9 @@ import type { Client } from "@/generated/prisma/client";
 // through an injected `onGenerate(clientId)` prop — the page wires it to the
 // real server action, so this component is testable with a fake and survives
 // any change to how generation is actually invoked. Token-derived classes
-// only (ADR-0003); the brand-accent swatch is the one runtime color, driven
-// by `client.colors` (the per-Client brand overlay, not a hardcoded token).
+// only (ADR-0003) — including the brand-accent swatch, which paints from
+// `bg-accent`. The clinic's own color reaches that token via <BrandOverlay>
+// higher up the tree (issue #7), so this component holds no runtime color.
 
 export type DraftPost = {
   id: string;
@@ -58,55 +60,54 @@ export function ClientDashboard({
 
   return (
     <div className="flex flex-col gap-4 font-sans">
-      <header className="flex items-center gap-4">
-        {client.logoUrl ? (
-          <img
-            src={client.logoUrl}
-            alt={client.name}
-            className="rounded border border-muted bg-surface h-12 w-12 object-contain"
-          />
+      <Card>
+        <header className="flex items-center gap-4">
+          <ClinicTile name={client.name} logoUrl={client.logoUrl} />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h2 className="text-xl font-semibold tracking-tight text-text">{client.name}</h2>
+            {client.colors ? (
+              <div className="flex items-center gap-2">
+                <span
+                  aria-label="Brand accent"
+                  className="inline-block h-4 w-4 rounded-sm border border-border bg-accent"
+                />
+                <span className="text-sm text-muted">{client.colors}</span>
+              </div>
+            ) : null}
+          </div>
+        </header>
+      </Card>
+
+      <Card className="flex flex-col gap-3">
+        <MicroLabel>Generation</MicroLabel>
+
+        {blockedReason ? (
+          <p role="alert" className="text-sm text-muted">
+            {blockedReason}
+          </p>
         ) : null}
-        <div className="flex flex-col gap-1">
-          <h2 className="text-text">{client.name}</h2>
-          {client.colors ? (
-            <div className="flex items-center gap-2">
-              <span
-                aria-label="Brand accent"
-                className="inline-block h-4 w-4 rounded border border-muted"
-                style={{ backgroundColor: client.colors }}
-              />
-              <span className="text-muted">{client.colors}</span>
-            </div>
-          ) : null}
-        </div>
-      </header>
 
-      {blockedReason ? (
-        <p role="alert" className="text-muted">
-          {blockedReason}
-        </p>
-      ) : null}
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={busy || blockedReason !== null}
+          className="self-start rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-60"
+        >
+          {busy ? "Generating…" : "Generate this week"}
+        </button>
 
-      <button
-        type="button"
-        onClick={handleGenerate}
-        disabled={busy || blockedReason !== null}
-        className="rounded bg-primary px-4 py-2 text-surface self-start"
-      >
-        {busy ? "Generating…" : "Generate this week"}
-      </button>
+        {state.kind === "generating" ? (
+          <p className="text-sm text-muted" role="status">
+            Generating drafts…
+          </p>
+        ) : null}
 
-      {state.kind === "generating" ? (
-        <p className="text-muted" role="status">
-          Generating drafts…
-        </p>
-      ) : null}
-
-      {state.kind === "error" ? (
-        <p role="alert" className="text-muted">
-          {state.message}
-        </p>
-      ) : null}
+        {state.kind === "error" ? (
+          <p role="alert" className="text-sm text-danger">
+            {state.message}
+          </p>
+        ) : null}
+      </Card>
 
       {state.kind === "success" ? (
         <DraftList posts={state.posts} warnings={state.warnings} />
@@ -127,7 +128,13 @@ function DraftList({
       {warnings.length > 0 ? (
         <ul className="flex flex-col gap-1">
           {warnings.map((w, i) => (
-            <li key={i} role="alert" className="text-muted">
+            // `warning`, not `danger`: a partial generation produced usable
+            // drafts. Painting it as an error would overstate the failure.
+            <li
+              key={i}
+              role="alert"
+              className="rounded-sm border border-warning bg-surface-raised px-3 py-2 text-sm text-warning"
+            >
               {w}
             </li>
           ))}
@@ -146,9 +153,9 @@ function DraftList({
 
 function DraftRow({ post }: { post: DraftPost }) {
   return (
-    <li className="rounded border border-muted bg-surface px-4 py-2">
-      <p className="text-text">{post.topic}</p>
-      <p className="text-muted">
+    <li className="rounded border border-border bg-surface-raised px-4 py-3 shadow-sm">
+      <p className="font-semibold text-text">{post.topic}</p>
+      <p className="text-sm text-muted">
         <span>{post.pillar}</span>
         <span aria-hidden="true"> · </span>
         <span>{post.format}</span>

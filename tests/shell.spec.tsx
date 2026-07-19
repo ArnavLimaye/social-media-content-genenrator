@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 import { lightTokens, darkTokens } from "@/lib/theme/tokens";
 import { Shell } from "@/app/shell";
 
@@ -39,6 +39,25 @@ describe("themed application shell", () => {
     expect(style?.textContent).toContain("--color-primary");
     expect(style?.textContent).toContain(lightTokens["--color-primary"]);
     expect(style?.textContent).toContain(darkTokens["--color-primary"]);
+  });
+
+  it("offers navigation to the screens that exist", () => {
+    render(<Shell>Walking skeleton.</Shell>);
+
+    const nav = screen.getByRole("navigation");
+    expect(within(nav).getByRole("link", { name: /clients/i })).toHaveAttribute("href", "/");
+    expect(within(nav).getByRole("link", { name: /new clinic/i })).toHaveAttribute(
+      "href",
+      "/clients/new",
+    );
+  });
+
+  it("does not link to the Board before it exists", () => {
+    // The prototype's header has a Board tab, but #8/#9 have not built those
+    // screens. Shipping the link now would route the operator to a 404 — worse
+    // than the link being absent. Delete this test when #8 lands.
+    render(<Shell>Walking skeleton.</Shell>);
+    expect(screen.queryByRole("link", { name: /board/i })).not.toBeInTheDocument();
   });
 
   it("toggles dark / light via [data-theme] on :root", () => {

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { Shell } from "@/app/shell";
 import { prisma } from "@/lib/db";
 import { generationBlocker } from "@/lib/clients";
+import { BrandOverlay } from "@/app/brand-overlay";
 import { ClientDashboard } from "./dashboard";
 import { generateThisWeek } from "./actions";
 
@@ -25,16 +26,18 @@ export default async function ClientDetailPage({
 
   return (
     <Shell>
-      <ClientDashboard
-        client={{
-          id: client.id,
-          name: client.name,
-          logoUrl: client.logoUrl,
-          colors: client.colors,
-        }}
-        blockedReason={blockedReason}
-        onGenerate={generateThisWeek}
-      />
+      <BrandOverlay colors={client.colors}>
+        <ClientDashboard
+          client={{
+            id: client.id,
+            name: client.name,
+            logoUrl: client.logoUrl,
+            colors: client.colors,
+          }}
+          blockedReason={blockedReason}
+          onGenerate={generateThisWeek}
+        />
+      </BrandOverlay>
     </Shell>
   );
 }

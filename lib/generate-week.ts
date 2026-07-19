@@ -24,11 +24,19 @@ import { buildCopywriterSystem, buildCopywriterUser } from "@/lib/prompts/copywr
 // Generous runaway guards, not budgets — Ollama Cloud bills GPU-time, not
 // tokens, so a high cap costs nothing and prevents the truncation that is the
 // main cause of invalid JSON (issue #5). Token counts are logged only.
-const PLANNER_MAX_TOKENS = 1500;
-const COPYWRITER_MAX_TOKENS = 4000;
+const PLANNER_MAX_TOKENS = 15000;
+const COPYWRITER_MAX_TOKENS = 40000;
 
-const PLANNER_MODEL = process.env.OLLAMA_PLANNER_MODEL ?? "qwen2.5:32b";
-const COPYWRITER_MODEL = process.env.OLLAMA_COPYWRITER_MODEL ?? "qwen2.5:32b";
+// Verified present on the operator's Ollama Cloud account via GET /v1/models —
+// the previous default (`qwen2.5:32b`) was a placeholder that account does not
+// carry, which surfaced as a bare 404 at generation time. Tags drift, so treat
+// a 404 here as "re-check /v1/models", not "the code is wrong".
+//
+// `||` rather than `??`: an empty env value must fall back to the default, not
+// override it with "" — the same trap that made an empty OLLAMA_API_KEY look
+// like a bad key.
+const PLANNER_MODEL = process.env.OLLAMA_PLANNER_MODEL?.trim() || "glm-5.2";
+const COPYWRITER_MODEL = process.env.OLLAMA_COPYWRITER_MODEL?.trim() || "glm-5.2";
 
 const DAYS: DayName[] = ["Monday", "Wednesday", "Friday"];
 

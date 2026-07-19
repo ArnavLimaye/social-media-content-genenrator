@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { tailwindTheme } from "@/lib/theme/tokens";
 
 // Behavior D — a guard: no component hardcodes a color, radius, or font.
 //
@@ -42,6 +43,127 @@ export function findHardcodedTokens(src: string): string[] {
   }
   return hits;
 }
+
+// A second guard, for the opposite failure: a class that names a token which
+// does not exist. `border-muted` used to resolve; after the #7 design lock
+// split `--color-muted` into `--color-border` and `--color-text-muted`, it
+// resolves to nothing and Tailwind emits no rule — the border silently
+// vanishes. No hardcoded value is present, so the guard above stays green and
+// the existing component tests still pass, because Testing Library does not
+// care about class names. Only a closed-vocabulary check catches this.
+
+const COLOR_PREFIXES = ["bg", "text", "border", "ring", "from", "to", "fill", "stroke"];
+
+// Utilities that share a color prefix but set something other than a color.
+// Kept explicit and small: anything not listed must be a token name.
+const STRUCTURAL_SUFFIXES = new Set([
+  "b", "t", "l", "r", "x", "y", // border sides
+  "0", "2", "4", "8", // border widths
+  "solid", "dashed", "dotted", "double", "none", "hidden", // border styles
+  "xs", "sm", "base", "lg", "xl", "2xl", "3xl", // text sizes
+  "left", "center", "right", "justify", // text alignment
+  "wrap", "nowrap", "balance", "pretty", // text wrapping
+  "ellipsis", "clip", // text overflow
+]);
+
+export function findUnknownTokenUtilities(src: string, knownColors: string[]): string[] {
+  const known = new Set(knownColors);
+  const hits: string[] = [];
+  const re = new RegExp(`\\b(${COLOR_PREFIXES.join("|")})-([a-z0-9-]+)`, "g");
+  for (const m of src.matchAll(re)) {
+    const [full, , suffix] = m;
+    if (known.has(suffix) || STRUCTURAL_SUFFIXES.has(suffix)) continue;
+    hits.push(full);
+  }
+  return hits;
+}
+
+describe("token-vocabulary guard", () => {
+  it("has teeth — flags a class naming a token that no longer exists", () => {
+    const known = Object.keys(tailwindTheme.colors);
+    expect(findUnknownTokenUtilities(`<div className="border-hairline" />`, known)).toContain(
+      "border-hairline",
+    );
+    // and does not flag legitimate structural or token classes
+    expect(
+      findUnknownTokenUtilities(`<div className="border-b border-border bg-surface text-sm text-muted" />`, known),
+    ).toEqual([]);
+  });
+
+  it("no component names a color token outside the locked vocabulary", () => {
+    const known = Object.keys(tailwindTheme.colors);
+    const violations = walk(APP_DIR)
+      .map((f) => ({ f, hits: findUnknownTokenUtilities(readFileSync(f, "utf8"), known) }))
+      .filter((r) => r.hits.length > 0);
+
+    if (violations.length > 0) {
+      const report = violations
+        .map((v) => `${path.relative(APP_DIR, v.f)}: ${[...new Set(v.hits)].join(", ")}`)
+        .join("\n");
+      throw new Error(
+        `Classes name tokens that do not exist — these emit no CSS at all:\n${report}\n` +
+          `Known token colors: ${known.join(", ")}`,
+      );
+    }
+  });
+});
+
+// A third guard: a filled background must take its foreground from the paired
+// `on-*` token, never from another background token.
+//
+// `bg-primary text-surface` is legible today by coincidence — `--color-surface`
+// happens to contrast with `--color-primary` in both modes. That is luck, not
+// design: it silently breaks the moment either value is retuned, and it breaks
+// hardest for the brand overlay, where `--color-accent` becomes an arbitrary
+// operator-supplied clinic color (#7). `--color-on-accent` exists precisely so
+// a component never has to guess.
+
+const FILLS = ["primary", "accent"];
+const BACKGROUND_TOKENS = ["surface", "surface-raised"];
+
+export function findMispairedForegrounds(src: string): string[] {
+  const hits: string[] = [];
+  // inspect each class list on its own, so unrelated elements don't cross-match
+  for (const m of src.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
+    const classes = m[1] ?? m[2] ?? "";
+    for (const fill of FILLS) {
+      if (!new RegExp(`\\bbg-${fill}\\b`).test(classes)) continue;
+      for (const bg of BACKGROUND_TOKENS) {
+        if (new RegExp(`\\btext-${bg}\\b`).test(classes)) {
+          hits.push(`bg-${fill} paired with text-${bg} (use text-on-${fill})`);
+        }
+      }
+    }
+  }
+  return hits;
+}
+
+describe("foreground-pairing guard", () => {
+  it("has teeth — flags a fill whose foreground is a background token", () => {
+    expect(findMispairedForegrounds(`<button className="rounded bg-primary text-surface" />`))
+      .toHaveLength(1);
+    // the correct pairing passes
+    expect(findMispairedForegrounds(`<button className="rounded bg-primary text-on-primary" />`))
+      .toEqual([]);
+    // and unrelated elements are not cross-matched
+    expect(
+      findMispairedForegrounds(`<div className="bg-primary" /><p className="text-surface" />`),
+    ).toEqual([]);
+  });
+
+  it("no component paints a fill with a background token as its foreground", () => {
+    const violations = walk(APP_DIR)
+      .map((f) => ({ f, hits: findMispairedForegrounds(readFileSync(f, "utf8")) }))
+      .filter((r) => r.hits.length > 0);
+
+    if (violations.length > 0) {
+      const report = violations
+        .map((v) => `${path.relative(APP_DIR, v.f)}: ${[...new Set(v.hits)].join(", ")}`)
+        .join("\n");
+      throw new Error(`Fills must use their paired on-* foreground token:\n${report}`);
+    }
+  });
+});
 
 describe("no-hardcoded-tokens guard", () => {
   it("has teeth — flags a known-bad snippet", () => {

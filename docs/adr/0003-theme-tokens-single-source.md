@@ -9,9 +9,22 @@ that one file restyles the whole app.
 The module defines every token as a named CSS custom property, for light and
 dark, under the **same names** (only the values differ):
 
-- `lightTokens` / `darkTokens` — `{ "--color-primary", "--color-accent",
-  "--color-surface", "--color-text", "--color-muted", "--radius", "--font-sans",
-  "--space-1/2/4", … }`.
+- `lightTokens` / `darkTokens` — the vocabulary locked by issue #7:
+  `--color-primary` / `--color-on-primary`, `--color-accent` /
+  `--color-on-accent`, `--color-surface` / `--color-surface-raised`,
+  `--color-text` / `--color-text-muted`, `--color-border`, `--color-success` /
+  `--color-warning` / `--color-danger`, `--radius` / `--radius-sm` /
+  `--radius-pill`, `--font-sans`, `--space-1…7`, `--shadow-sm` / `--shadow-md`.
+  Two conventions are load-bearing:
+  - **Every filled background has a paired foreground** (`--color-on-accent`).
+    A component painting a fill never guesses whether light or dark text reads
+    on it — which matters because the brand overlay can put an arbitrary clinic
+    color on `--color-accent`.
+  - **Borders and muted text are separate tokens.** These were one
+    `--color-muted` before #7, which meant a single value could not be tuned
+    for both jobs. `tests/no-hardcoded-tokens.spec.ts` now also guards the
+    *closed vocabulary*: a class naming a token that does not exist (`border-muted`)
+    emits no CSS at all and passes every other check, so it needs its own guard.
 - `tailwindTheme` — maps Tailwind names to the CSS var *names*
   (`colors.primary = "var(--color-primary)"`, `fontFamily.sans =
   "var(--font-sans)"`, `borderRadius.DEFAULT = "var(--radius)"`). Values stay in
@@ -40,7 +53,20 @@ from the same names (asserted by `tests/tokens.spec.ts`). The cost is a
 build/runtime `<style>` injection rather than a static CSS file — acceptable for
 a local single-operator app.
 
-**Reconsider if:** a per-**Client** brand overlay (accent + logo from
-`Client.colors`/`logoUrl`) needs something a CSS-var swap can't express. The
-overlay is already just var overrides, so this is unlikely; if it happens,
-extend the token module rather than hardcoding in components.
+**The per-Client brand overlay** (added by #7) confirmed the prediction below: it
+is purely a var override. `<BrandOverlay>` (`app/brand-overlay.tsx`) scopes
+`--color-accent` to a **Client**'s first brand color over its subtree, and no
+child component takes a color prop or changed at all. Deliberately, *only* the
+accent is overridable — letting a Client repaint `--color-surface` or
+`--color-text` would let bad brand data destroy contrast and make the app
+unreadable. Parsing and that policy live in `lib/theme/brand.ts`; a malformed
+value yields no override rather than an invalid declaration.
+
+**Reconsider if:** the brand overlay ever needs to vary a token *other* than the
+accent, or a second theme set (the prototype's `warm` / `mono`) is actually
+wanted. Only `teal` was committed by #7. Adding sets means a
+`[data-theme-set]` dimension crossed with light/dark — extend the token module
+rather than hardcoding in components.
+
+**See also:** `docs/design/post-card.md` — the #7 design lock for the Post card,
+review-flag treatment, and brand overlay, which #8/#9 implement against.

@@ -13,10 +13,10 @@ export default async function Home() {
     <Shell>
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-text">Clients</h2>
+          <h1 className="text-xl font-semibold tracking-tight text-text">Clients</h1>
           <Link
             href="/clients/new"
-            className="rounded bg-primary px-4 py-2 text-surface"
+            className="rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-on-primary"
           >
             New client
           </Link>

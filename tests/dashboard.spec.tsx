@@ -63,6 +63,39 @@ describe("ClientDashboard: clinic identity", () => {
     expect(screen.getByText("#0A6E7C")).toBeInTheDocument();
   });
 
+  it("falls back to the clinic's initials when it has no logo", () => {
+    // Most clinics are onboarded without a logo URL, so the no-logo path is the
+    // common one, not the edge case. Rendering nothing leaves the identity
+    // header visibly broken (#14).
+    render(
+      <ClientDashboard
+        client={fakeClient({ name: "Little Smiles Pediatric", logoUrl: null })}
+        blockedReason={null}
+        onGenerate={noopGenerate}
+      />,
+    );
+
+    expect(screen.getByText("LS")).toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("paints the brand swatch from the accent token, so a two-color brand field is still valid CSS", () => {
+    // Client.colors holds a LIST ("#0A6E7C, #FFFFFF"). Passing that straight to
+    // backgroundColor yields an invalid declaration and an unpainted swatch.
+    // The swatch must therefore take its color from --color-accent, which the
+    // BrandOverlay resolves to the client's first color (issue #7).
+    render(
+      <ClientDashboard
+        client={fakeClient({ colors: "#0A6E7C, #FFFFFF" })}
+        blockedReason={null}
+        onGenerate={noopGenerate}
+      />,
+    );
+
+    const swatch = screen.getByLabelText(/brand accent/i);
+    expect(swatch.style.backgroundColor).toBe("");
+  });
+
   it("renders a 'Generate this week' button", () => {
     render(
       <ClientDashboard
