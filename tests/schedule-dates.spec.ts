@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scheduleDates } from "@/lib/schedule-dates";
+import { scheduleDates, weekStartFor } from "@/lib/schedule-dates";
 
 // Issue #5 — `schedule-dates` is a PURE helper that derives a post's
 // `scheduledDate` from the plan's week start (a Monday) plus the planner's
@@ -40,5 +40,25 @@ describe("scheduleDates: Mon/Wed/Fri from a Monday week start", () => {
     const snapshot = weekStart.toISOString();
     scheduleDates(weekStart);
     expect(weekStart.toISOString()).toBe(snapshot);
+  });
+});
+
+// weekStartFor derives the Monday that starts the week containing `date`,
+// normalised to 09:00:00Z so it matches the orchestrator's week-start
+// convention (issue #6 — "Generate this week" uses the current week's Monday).
+describe("weekStartFor: Monday of the week containing a date", () => {
+  it("rolls a Wednesday back to that week's Monday", () => {
+    const monday = weekStartFor(new Date("2026-07-22T14:30:00Z")); // Wednesday
+    expect(monday.toISOString()).toBe("2026-07-20T09:00:00.000Z");
+  });
+
+  it("treats Sunday as the end of the week (rolls back to the prior Monday)", () => {
+    const monday = weekStartFor(new Date("2026-07-26T08:00:00Z")); // Sunday
+    expect(monday.toISOString()).toBe("2026-07-20T09:00:00.000Z");
+  });
+
+  it("returns the same Monday when the date is already a Monday", () => {
+    const monday = weekStartFor(new Date("2026-07-20T22:00:00Z")); // Monday, late
+    expect(monday.toISOString()).toBe("2026-07-20T09:00:00.000Z");
   });
 });

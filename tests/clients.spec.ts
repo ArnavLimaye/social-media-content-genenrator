@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { prisma } from "@/lib/db";
-import { createClient, listClients } from "@/lib/clients";
+import { createClient, listClients, generationBlocker } from "@/lib/clients";
 
 // Issue #3 — Client onboarding form + Client list.
 //
@@ -116,5 +116,36 @@ describe("client onboarding: createClient + listClients", () => {
       where: { id: result.client.id },
     });
     expect(reloaded.brandVoice).toBe(voice);
+  });
+});
+
+// Issue #6 — the "Generate this week" prerequisite guard. A pure predicate
+// over a Client's required-for-generation fields: returns a human-readable
+// reason if any are blank, or null when the client is ready to generate. The
+// dashboard page calls this and blocks the button (rather than triggering a
+// broken run) when it returns a reason. Pure — no DB, no I/O.
+describe("generationBlocker: is a Client ready to generate?", () => {
+  const ready = {
+    name: "Lakeside Dental",
+    pillarMon: "Patient Education",
+    pillarWed: "Trust & Clinic Branding",
+    pillarFri: "Engagement / Fun",
+  };
+
+  it("returns null when name and all three pillars are present", () => {
+    expect(generationBlocker(ready)).toBeNull();
+  });
+
+  it("returns a reason naming the missing field when a pillar is blank", () => {
+    const reason = generationBlocker({ ...ready, pillarWed: "" });
+    expect(reason).not.toBeNull();
+    expect(reason).toContain("pillar");
+    expect(reason).toContain("Wednesday");
+  });
+
+  it("returns a reason when the clinic name is blank", () => {
+    const reason = generationBlocker({ ...ready, name: "  " });
+    expect(reason).not.toBeNull();
+    expect(reason).toContain("name");
   });
 });

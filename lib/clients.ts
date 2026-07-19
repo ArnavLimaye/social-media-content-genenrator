@@ -63,3 +63,29 @@ export async function createClient(
 export async function listClients(): Promise<Client[]> {
   return prisma.client.findMany({ orderBy: { createdAt: "desc" } });
 }
+
+// The required-for-generation fields (issue #6). A Client missing any of
+// these cannot be generated for — the dashboard blocks the "Generate this
+// week" button with this reason instead of triggering a broken run. Same
+// required set as `createClient` (name + the three Mon/Wed/Fri pillars,
+// ADR-0002). Pure: no DB, no I/O — takes just the fields it needs.
+export type GenerationRequired = Pick<Client, "name" | "pillarMon" | "pillarWed" | "pillarFri">;
+
+const PILLAR_LABELS: Array<{ field: keyof GenerationRequired; label: string }> = [
+  { field: "pillarMon", label: "Monday" },
+  { field: "pillarWed", label: "Wednesday" },
+  { field: "pillarFri", label: "Friday" },
+];
+
+export function generationBlocker(client: GenerationRequired): string | null {
+  if (!client.name || client.name.trim() === "") {
+    return "Clinic name is missing — add it before generating.";
+  }
+  for (const { field, label } of PILLAR_LABELS) {
+    const value = client[field];
+    if (typeof value !== "string" || value.trim() === "") {
+      return `${label} pillar is missing — add it before generating.`;
+    }
+  }
+  return null;
+}
