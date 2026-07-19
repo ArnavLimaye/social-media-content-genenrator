@@ -79,8 +79,31 @@ The app never renders or calls an image API in the MVP.
 - A **Client** has exactly three **Pillars** (Mon/Wed/Fri).
 - The **Domain Profile** is injected into agent prompts; it is not per-Client data.
 
+## Stack (walking skeleton)
+
+Local single-operator app, no auth. The stack and its load-bearing decisions
+live in the ADRs; this is the quick reference.
+
+- **Next.js 16** (App Router, Turbopack) + **React 18** + **Tailwind 3**.
+- **Prisma 7** + **`@prisma/adapter-better-sqlite3`** over SQLite. Connection URL
+  in `prisma.config.ts`; `PrismaClient` from `@/generated/prisma/client`
+  (`generated/` is gitignored). See ADR-0004.
+- **Node 22** — pinned via `.nvmrc`. Run `nvm use 22` before any
+  `npm` / `next` / `prisma` command (Prisma 7 needs `≥20.19`; see ADR-0004).
+- **Theming** — one module (`lib/theme/tokens.ts`) drives all colors/radii/fonts
+  for light + dark; no component hardcodes a value (guard-enforced). See
+  ADR-0003.
+- **Tests** — Vitest + happy-dom + Testing Library. The suite runs against an
+  isolated `test.db` (set in `vitest.global-setup.ts`, which also runs
+  `prisma migrate deploy`), never the operator's `dev.db`.
+
 ## Flagged ambiguities
 
 - "Domain configurable" (vision) vs. dental hardcoded everywhere (code) — resolved:
   MVP is hardcoded dental with ONE seam (the **Domain Profile** text). Variable
   pillar count / arbitrary schedules are deferred until a real second domain exists.
+- "Multi-tenant" (used for the theming ask) — resolved: it is NOT multi-tenancy. The
+  design-token theme file and per-**Client** brand overlay (accent + logo from
+  `Client.colors`/`logoUrl`) are presentation-only over one shared local database.
+  Multi-tenancy (auth, tenant data isolation) stays out of scope. Use "theming" /
+  "brand overlay" / "white-labeling the UI", never "multi-tenant".

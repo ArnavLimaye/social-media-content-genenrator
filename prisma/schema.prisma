@@ -1,0 +1,88 @@
+// Prisma schema for the dental content back-office MVP.
+// Run `npx prisma migrate dev --name <name>` after editing to apply changes.
+//
+// ADR-0001: a Post's copywriter output is stored as a document — scalar
+// columns for hook/caption/cta (easy inline editing) plus Prisma Json fields
+// for the nested/list-shaped slides, hashtags, and reviewFlags. There is no
+// opaque `copy` column. ADR-0002: the three-pillar Mon/Wed/Fri shape is a
+// hardcoded constant; Client.monthlyTokenBudget is deliberately deferred to v2.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Client {
+  id         String   @id @default(cuid())
+  name       String
+  location   String?
+  audience   String? // e.g. "Families, working professionals"
+  brandVoice String? // free-text tone notes, injected into copywriter prompt
+  colors     String? // e.g. "#0A6E7C, #FFFFFF" — per-Client brand overlay
+  logoUrl    String?
+
+  // The three content pillars (Mon/Wed/Fri subjects) — hardcoded constant (ADR-0002).
+  pillarMon String // e.g. "Patient Education"
+  pillarWed String // e.g. "Trust & Clinic Branding"
+  pillarFri String // e.g. "Engagement / Fun"
+
+  plans     Plan[]
+  posts     Post[]
+  createdAt DateTime @default(now())
+}
+
+model Plan {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  period    String   // "week" | "month" (month is v2)
+  label     String   // e.g. "Week of 2026-07-20" — human-readable
+  posts     Post[]
+  createdAt DateTime @default(now())
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  plan      Plan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
+  planId    String?
+
+  // Planner output
+  pillar    String // which pillar this post serves
+  format    String // "carousel" | "reel" | "infographic"
+  topic     String // short topic line from the planner
+  objective String // one sentence: what this post should achieve
+
+  // Copywriter output — scalars (ADR-0001)
+  hook    String?
+  caption String?
+  cta     String?
+
+  // Copywriter output — document fields (ADR-0001)
+  // slides: [{ heading, description, imageIdeas: [{ type, text }] }]
+  // reviewFlags: [{ claim, reason }]
+  slides      Json?
+  hashtags    Json?
+  reviewFlags Json?
+
+  // Scheduling + lifecycle
+  scheduledDate DateTime?
+  status        String    @default("draft") // draft | approved | published
+  publishedAt   DateTime?
+  flagsAcknowledgedAt DateTime? // set when operator clears review flags (draft → approved gate)
+
+  imagePath String? // filled by the template/image step (v2)
+
+  // Per-agent token logging (Ollama returns these counts per call).
+  plannerPromptTokens    Int?
+  plannerOutputTokens    Int?
+  copywriterPromptTokens Int?
+  copywriterOutputTokens Int?
+
+  createdAt DateTime @default(now())
+}

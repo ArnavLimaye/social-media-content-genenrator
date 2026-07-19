@@ -20,7 +20,9 @@ Pseudo-flow for `POST /api/generate` (build this during the issues phase):
 1. Load the Client and its last ~20 post topics (for `recentTopics`).
 2. Call the **planner** once — `callOllama` with the planner model, a ~800 `max_tokens` cap, `PLANNER_SYSTEM` + `buildPlannerUser(...)`. Parse JSON → 3 planned posts. Log `promptTokens`/`outputTokens`.
 3. For each planned post, call the **copywriter** — copywriter model, ~1200 cap, `COPYWRITER_SYSTEM` + `buildCopywriterUser(...)`. Parse JSON. Log its token counts.
-4. Write 3 `Post` rows (status `draft`), storing copy, `reviewFlags`, and all four token counts.
+4. Write 3 `Post` rows (status `draft`), storing `hook`/`caption`/`cta`, `slides`,
+   `hashtags`, `reviewFlags`, and all four token counts. No `copy` column — see
+   ADR-0001 (post content is a document).
 
 ## Two things to remember
 
