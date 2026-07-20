@@ -2,9 +2,13 @@
 
 import { useState, useRef, useLayoutEffect } from "react";
 import type { SerializedPost, Slide, ReviewFlag } from "@/lib/posts";
+import { postState } from "@/lib/post-state";
+import { dayLabel } from "@/lib/calendar";
+import { formatGlyph, statusBadge } from "./post-badges";
 
-// The Post card — the reusable centrepiece of the Board (issue #8) and later
-// #9's week-list / drawer. Built to the #7 design lock (docs/design/post-card.md):
+// The Post card — the reusable centrepiece of every Board mode: the kanban
+// column (#8), the week-list row, and the editor drawer (#9). Built to the #7
+// design lock (docs/design/post-card.md):
 // one column, badge row → date line → topic + hook → review flags → slides →
 // caption → CTA → hashtags → footer. Every value is a token-derived class
 // (ADR-0003); accent-painted elements (pillar badge, image-idea `creative`
@@ -12,9 +16,9 @@ import type { SerializedPost, Slide, ReviewFlag } from "@/lib/posts";
 // rebrands them per Client with zero component changes (design-lock §4).
 //
 // Inline-editable copy fields commit on blur through injected callbacks. The
-// page wires real server actions; tests inject fakes. Editing is the only
-// mutation in this slice — footer status actions are rendered but inert (#10
-// wires transitions and the flag-acknowledgment gate).
+// page wires real server actions; tests inject fakes. Editing is still the only
+// mutation — footer status actions are rendered but inert (#10 wires
+// transitions and the flag-acknowledgment gate).
 
 export type PostCardProps = {
   post: SerializedPost;
@@ -26,32 +30,39 @@ export type PostCardProps = {
     field: "heading" | "description",
     value: string,
   ) => void;
+  // The date line is kanban-only (design-lock §2): there, a card carries no
+  // other clue when it is scheduled. In the calendar modes the position on the
+  // calendar *is* the date, and repeating it under the day heading reads as two
+  // different facts about the same Post.
+  showDateLine?: boolean;
 };
 
-// Format badge glyph (design-lock §2): carousel ▤, reel ▶, infographic ◫.
-const FORMAT_GLYPH: Record<string, string> = {
-  carousel: "▤",
-  reel: "▶",
-  infographic: "◫",
-};
+// The card shell (design-lock §1). A generation-failed Post gets a dashed
+// `danger` border so it reads as an incomplete slot rather than an error —
+// the copy is missing, and the operator is meant to regenerate it (#11).
+const SHELL_BASE = "flex flex-col gap-3 rounded bg-surface-raised p-5 shadow-sm";
+const SHELL_FAILED = "border border-dashed border-danger/45 bg-danger/5";
 
-// Status badge recipe (design-lock §2): one shared shape, colored per status.
-const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  draft: { label: "Draft", cls: "bg-muted/10 border-muted/25 text-muted" },
-  approved: { label: "Approved", cls: "bg-accent/10 border-accent/25 text-accent" },
-  published: { label: "✓ Published", cls: "bg-success/10 border-success/25 text-success" },
-  failed: { label: "Failed", cls: "bg-danger/10 border-danger/25 text-danger" },
-};
-
-export function PostCard({ post, onEditField, onEditHashtags, onEditSlide }: PostCardProps) {
-  const status = STATUS_BADGE[post.status] ?? STATUS_BADGE.draft;
+export function PostCard({
+  post,
+  onEditField,
+  onEditHashtags,
+  onEditSlide,
+  showDateLine = true,
+}: PostCardProps) {
+  // Not `post.status`: a Post whose copywriter call failed is stored as a
+  // topic-only draft, so the failed state has to be derived (lib/posts.ts).
+  const state = postState(post);
+  const status = statusBadge(state);
 
   return (
-    <article className="flex flex-col gap-3 rounded border border-border bg-surface-raised p-5 shadow-sm">
+    <article
+      className={`${SHELL_BASE} ${state === "failed" ? SHELL_FAILED : "border border-border"}`}
+    >
       {/* badge row */}
       <div className="flex items-center gap-2">
         <span className="rounded-pill border border-border px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-muted">
-          <span aria-hidden="true">{FORMAT_GLYPH[post.format] ?? "▤"}</span>{" "}
+          <span aria-hidden="true">{formatGlyph(post.format)}</span>{" "}
           {post.format}
         </span>
         <span className="rounded-pill bg-accent/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-accent">
@@ -66,7 +77,7 @@ export function PostCard({ post, onEditField, onEditHashtags, onEditSlide }: Pos
       </div>
 
       {/* date line (kanban only — design-lock §2) */}
-      {post.scheduledDate ? <DateLine iso={post.scheduledDate} /> : null}
+      {showDateLine && post.scheduledDate ? <DateLine iso={post.scheduledDate} /> : null}
 
       {/* topic + hook */}
       <div className="flex flex-col gap-1">
@@ -79,7 +90,7 @@ export function PostCard({ post, onEditField, onEditHashtags, onEditSlide }: Pos
         />
       </div>
 
-      {/* review flags — only when present (next slice expands) */}
+      {/* review flags — only when present (design-lock §3) */}
       {post.reviewFlags && post.reviewFlags.length > 0 ? (
         <ReviewFlags flags={post.reviewFlags} />
       ) : null}
@@ -124,23 +135,17 @@ export function PostCard({ post, onEditField, onEditHashtags, onEditSlide }: Pos
       ) : null}
 
       {/* footer — status actions render inert until #10 */}
-      <Footer status={post.status} />
+      <Footer state={state} />
     </article>
   );
 }
 
-// The kanban date line: "Wed · Jul 22". Computed with UTC getters so it is
-// deterministic regardless of the operator's timezone (the scheduledDate is an
-// ISO string from the server).
-const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
+// The kanban date line: "Wed · Jul 22" — the same label the week list puts on
+// its day headings, from the same helper, so a Post cannot appear to be on one
+// day in one mode and another day elsewhere. UTC throughout (lib/calendar.ts).
 function DateLine({ iso }: { iso: string }) {
-  const d = new Date(iso);
   return (
-    <p className="text-xs font-medium text-muted">
-      {DOW[d.getUTCDay()]} · {MON[d.getUTCMonth()]} {d.getUTCDate()}
-    </p>
+    <p className="text-xs font-medium text-muted">{dayLabel(new Date(iso))}</p>
   );
 }
 
@@ -156,7 +161,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-// Placeholder for the slide list + flags + footer, filled in by later slices.
+// Slides: a `16px 1fr` grid, each block inset on `surface` (design-lock §2).
 function SlideList({
   slides,
   topic,
@@ -388,22 +393,22 @@ function AutoTextarea({
 
 // Footer: status note left, actions right. Actions are inert until #10 wires
 // transitions + the flag-acknowledgment gate.
-function Footer({ status }: { status: string }) {
+function Footer({ state }: { state: string }) {
   const note: Record<string, string> = {
     draft: "Ready for review",
     approved: "Queued",
     published: "Published · read-only",
-    failed: "Copy failed",
+    failed: "Planner outline saved · copy failed",
   };
   return (
     <footer className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted">
-      <span className={status === "published" ? "font-semibold text-success" : ""}>
-        {note[status] ?? "Ready for review"}
+      <span className={state === "published" ? "font-semibold text-success" : ""}>
+        {note[state] ?? "Ready for review"}
       </span>
       <span className="flex gap-1" aria-hidden="true">
-        {status === "draft" ? <span className="rounded-sm border border-border px-2 py-0.5">Approve</span> : null}
-        {status === "approved" ? <span className="rounded-sm border border-border px-2 py-0.5">Publish</span> : null}
-        {status === "failed" ? <span className="rounded-sm border border-border px-2 py-0.5">↻ Regenerate</span> : null}
+        {state === "draft" ? <span className="rounded-sm border border-border px-2 py-0.5">Approve</span> : null}
+        {state === "approved" ? <span className="rounded-sm border border-border px-2 py-0.5">Publish</span> : null}
+        {state === "failed" ? <span className="rounded-sm border border-border px-2 py-0.5">↻ Regenerate</span> : null}
       </span>
     </footer>
   );
