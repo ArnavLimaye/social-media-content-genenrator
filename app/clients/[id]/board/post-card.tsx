@@ -3,6 +3,7 @@
 import { useState, useRef, useLayoutEffect } from "react";
 import type { SerializedPost, Slide, ReviewFlag } from "@/lib/posts";
 import { postState } from "@/lib/post-state";
+import { canApprove, isEditable, needsAcknowledgment } from "@/lib/post-status";
 import { dayLabel } from "@/lib/calendar";
 import { formatGlyph, statusBadge } from "./post-badges";
 
@@ -15,10 +16,10 @@ import { formatGlyph, statusBadge } from "./post-badges";
 // chips, hashtags) read `--color-accent`, so the surrounding <BrandOverlay>
 // rebrands them per Client with zero component changes (design-lock §4).
 //
-// Inline-editable copy fields commit on blur through injected callbacks. The
-// page wires real server actions; tests inject fakes. Editing is still the only
-// mutation — footer status actions are rendered but inert (#10 wires
-// transitions and the flag-acknowledgment gate).
+// Inline-editable copy fields commit on blur through injected callbacks, and
+// #10 made the footer live: the status actions now drive the draft → approved →
+// published lifecycle, with the review-flag acknowledgment gate on the first
+// step. The page wires real server actions; tests inject fakes.
 
 export type PostCardProps = {
   post: SerializedPost;
@@ -30,6 +31,10 @@ export type PostCardProps = {
     field: "heading" | "description",
     value: string,
   ) => void;
+  // Lifecycle actions (#10). `acknowledged` is the operator's explicit sign-off
+  // on the review flags — the card never sends it unless the operator ticked it.
+  onApprove?: (postId: string, acknowledged: boolean) => void;
+  onPublish?: (postId: string) => void;
   // The date line is kanban-only (design-lock §2): there, a card carries no
   // other clue when it is scheduled. In the calendar modes the position on the
   // calendar *is* the date, and repeating it under the day heading reads as two
@@ -40,24 +45,47 @@ export type PostCardProps = {
 // The card shell (design-lock §1). A generation-failed Post gets a dashed
 // `danger` border so it reads as an incomplete slot rather than an error —
 // the copy is missing, and the operator is meant to regenerate it (#11).
-const SHELL_BASE = "flex flex-col gap-3 rounded bg-surface-raised p-5 shadow-sm";
-const SHELL_FAILED = "border border-dashed border-danger/45 bg-danger/5";
+// A `published` Post is visibly recessed — its background mixed 45% toward
+// `surface` — so a read-only record reads as settled rather than merely
+// un-clickable (design-lock §1).
+const SHELL_BASE = "flex flex-col gap-3 rounded p-5 shadow-sm border";
+const SHELL_FAILED = "bg-surface-raised border-dashed border-danger/45 bg-danger/5";
+
+function shellClass(state: string): string {
+  if (state === "failed") return `${SHELL_BASE} ${SHELL_FAILED}`;
+  return `${SHELL_BASE} border-border ${state === "published" ? "" : "bg-surface-raised"}`;
+}
+
+// The recessed `published` background: `surface-raised` mixed 45% toward
+// `surface`. Expressed as a `color-mix` over the two tokens rather than a new
+// token, so it still moves with the theme (ADR-0003) — the same technique the
+// review-flag border already uses.
+const PUBLISHED_BG = {
+  backgroundColor:
+    "color-mix(in srgb, var(--color-surface) 45%, var(--color-surface-raised))",
+};
 
 export function PostCard({
   post,
   onEditField,
   onEditHashtags,
   onEditSlide,
+  onApprove,
+  onPublish,
   showDateLine = true,
 }: PostCardProps) {
   // Not `post.status`: a Post whose copywriter call failed is stored as a
   // topic-only draft, so the failed state has to be derived (lib/posts.ts).
   const state = postState(post);
   const status = statusBadge(state);
+  // A published Post is the record of what went out; every field renders as
+  // static text in every Board view (design-lock §1).
+  const readOnly = !isEditable(post.status);
 
   return (
     <article
-      className={`${SHELL_BASE} ${state === "failed" ? SHELL_FAILED : "border border-border"}`}
+      className={shellClass(state)}
+      style={state === "published" ? PUBLISHED_BG : undefined}
     >
       {/* badge row */}
       <div className="flex items-center gap-2">
@@ -85,6 +113,7 @@ export function PostCard({
         <InlineText
           ariaLabel={`Hook — ${post.topic}`}
           value={post.hook ?? ""}
+          readOnly={readOnly}
           onCommit={(v) => onEditField(post.id, "hook", v)}
           className="text-sm italic text-muted"
         />
@@ -92,7 +121,7 @@ export function PostCard({
 
       {/* review flags — only when present (design-lock §3) */}
       {post.reviewFlags && post.reviewFlags.length > 0 ? (
-        <ReviewFlags flags={post.reviewFlags} />
+        <ReviewFlags flags={post.reviewFlags} reviewed={!!post.flagsAcknowledgedAt} />
       ) : null}
 
       {/* slides */}
@@ -100,6 +129,7 @@ export function PostCard({
         <SlideList
           slides={post.slides}
           topic={post.topic}
+          readOnly={readOnly}
           onEditSlide={(index, field, value) => onEditSlide(post.id, index, field, value)}
         />
       ) : null}
@@ -110,6 +140,7 @@ export function PostCard({
           ariaLabel={`Caption — ${post.topic}`}
           value={post.caption ?? ""}
           multiline
+          readOnly={readOnly}
           onCommit={(v) => onEditField(post.id, "caption", v)}
           className="text-sm text-text"
         />
@@ -120,6 +151,7 @@ export function PostCard({
         <InlineText
           ariaLabel={`CTA — ${post.topic}`}
           value={post.cta ?? ""}
+          readOnly={readOnly}
           onCommit={(v) => onEditField(post.id, "cta", v)}
           className="text-sm font-semibold text-text"
         />
@@ -130,12 +162,13 @@ export function PostCard({
         <InlineHashtags
           hashtags={post.hashtags}
           topic={post.topic}
+          readOnly={readOnly}
           onCommit={(tags) => onEditHashtags(post.id, tags)}
         />
       ) : null}
 
-      {/* footer — status actions render inert until #10 */}
-      <Footer state={state} />
+      {/* footer — live lifecycle actions (#10) */}
+      <Footer post={post} state={state} onApprove={onApprove} onPublish={onPublish} />
     </article>
   );
 }
@@ -165,10 +198,12 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 function SlideList({
   slides,
   topic,
+  readOnly,
   onEditSlide,
 }: {
   slides: Slide[];
   topic: string;
+  readOnly: boolean;
   onEditSlide: (index: number, field: "heading" | "description", value: string) => void;
 }) {
   return (
@@ -183,6 +218,7 @@ function SlideList({
             <InlineText
               ariaLabel={`Slide ${i + 1} heading — ${topic}`}
               value={slide.heading}
+              readOnly={readOnly}
               onCommit={(v) => onEditSlide(i, "heading", v)}
               className="text-sm font-semibold text-text"
             />
@@ -190,6 +226,7 @@ function SlideList({
               ariaLabel={`Slide ${i + 1} description — ${topic}`}
               value={slide.description}
               multiline
+              readOnly={readOnly}
               onCommit={(v) => onEditSlide(i, "description", v)}
               className="text-sm text-muted"
             />
@@ -222,7 +259,11 @@ function ImageIdeaChips({ ideas }: { ideas: Slide["imageIdeas"] }) {
   );
 }
 
-function ReviewFlags({ flags }: { flags: ReviewFlag[] }) {
+// Once acknowledged the badge switches from "⚑ n flags" to "⚑ n reviewed"
+// (design-lock §3) — it does not disappear. The claims are still worth seeing,
+// and the operator must be able to re-read what was signed off on. The wording
+// says a human looked, never that the claim is true.
+function ReviewFlags({ flags, reviewed }: { flags: ReviewFlag[]; reviewed: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="flex flex-col gap-2">
@@ -233,7 +274,7 @@ function ReviewFlags({ flags }: { flags: ReviewFlag[] }) {
         className="self-start rounded-pill border bg-warning/10 px-2 py-0.5 text-xs font-bold text-warning"
         style={{ borderColor: "color-mix(in srgb, var(--color-warning) 35%, transparent)" }}
       >
-        ⚑ {flags.length} flags {open ? "▲" : "▼"}
+        ⚑ {flags.length} {reviewed ? "reviewed" : "flags"} {open ? "▲" : "▼"}
       </button>
       {open ? (
         <ul className="flex flex-col gap-1 rounded-sm bg-warning/5 p-3">
@@ -256,14 +297,19 @@ function ReviewFlags({ flags }: { flags: ReviewFlag[] }) {
 function InlineHashtags({
   hashtags,
   topic,
+  readOnly,
   onCommit,
 }: {
   hashtags: string[];
   topic: string;
+  readOnly: boolean;
   onCommit: (hashtags: string[]) => void;
 }) {
   const joined = hashtags.join(" ");
   const [value, setValue] = useState(joined);
+  if (readOnly) {
+    return <p className="px-1 text-sm font-semibold text-accent">{joined}</p>;
+  }
   return (
     <input
       type="text"
@@ -294,14 +340,23 @@ function InlineText({
   onCommit,
   className = "",
   multiline = false,
+  readOnly = false,
 }: {
   ariaLabel: string;
   value: string;
   onCommit: (value: string) => void;
   className?: string;
   multiline?: boolean;
+  readOnly?: boolean;
 }) {
   const [text, setText] = useState(value);
+
+  // A published Post renders its copy as plain text, not a disabled field: the
+  // record stays fully readable, and there is no affordance suggesting an edit
+  // that would be refused (design-lock §1; the data layer refuses it too).
+  if (readOnly) {
+    return <p className={`whitespace-pre-wrap px-1 ${className}`}>{value}</p>;
+  }
 
   // skip a spurious write when the field was not changed
   const commit = () => {
@@ -391,25 +446,173 @@ function AutoTextarea({
   );
 }
 
-// Footer: status note left, actions right. Actions are inert until #10 wires
-// transitions + the flag-acknowledgment gate.
-function Footer({ state }: { state: string }) {
-  const note: Record<string, string> = {
-    draft: "Ready for review",
-    approved: "Queued",
-    published: "Published · read-only",
-    failed: "Planner outline saved · copy failed",
+// Footer: status note left, lifecycle actions right (design-lock §2). The
+// action set is derived, never guessed — `canApprove` decides whether Approve
+// appears at all, so the footer and the data layer cannot disagree about what
+// is legal.
+const NOTES: Record<string, string> = {
+  draft: "Ready for review",
+  approved: "Queued",
+  published: "Published · read-only",
+  failed: "Planner outline saved · copy failed",
+};
+
+const ACTION_CLASS =
+  "rounded-sm border border-border px-2 py-0.5 font-semibold text-text hover:bg-surface";
+
+function Footer({
+  post,
+  state,
+  onApprove,
+  onPublish,
+}: {
+  post: SerializedPost;
+  state: string;
+  onApprove?: (postId: string, acknowledged: boolean) => void;
+  onPublish?: (postId: string) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  const gated = needsAcknowledgment(post);
+  const showApprove = canApprove(post, true) && onApprove;
+  const showPublish = state === "approved" && onPublish;
+
+  // A flagged Post cannot be clicked past: the first click opens the
+  // confirmation rather than approving. Clean copy goes straight through.
+  const approve = () => {
+    if (gated) return setConfirming(true);
+    onApprove?.(post.id, false);
   };
+
+  // The footer note tracks the same three-way flag state as the badge
+  // (design-lock §2 table): unreviewed → reviewed → the plain lifecycle note.
+  const acknowledged = state === "draft" && !!post.flagsAcknowledgedAt;
+  const note = gated
+    ? "Review flags before approving"
+    : acknowledged
+      ? "Flags reviewed"
+      : NOTES[state] ?? NOTES.draft;
+
   return (
-    <footer className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted">
-      <span className={state === "published" ? "font-semibold text-success" : ""}>
-        {note[state] ?? "Ready for review"}
-      </span>
-      <span className="flex gap-1" aria-hidden="true">
-        {state === "draft" ? <span className="rounded-sm border border-border px-2 py-0.5">Approve</span> : null}
-        {state === "approved" ? <span className="rounded-sm border border-border px-2 py-0.5">Publish</span> : null}
-        {state === "failed" ? <span className="rounded-sm border border-border px-2 py-0.5">↻ Regenerate</span> : null}
-      </span>
-    </footer>
+    <>
+      <footer className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted">
+        <span className={state === "published" ? "font-semibold text-success" : ""}>
+          {note}
+        </span>
+        <span className="flex gap-1">
+          {showApprove ? (
+            <button type="button" onClick={approve} className={ACTION_CLASS}>
+              {/* the ellipsis signals a further step (design-lock §3) */}
+              {gated ? "Approve…" : "Approve"}
+            </button>
+          ) : null}
+          {showPublish ? (
+            <button
+              type="button"
+              onClick={() => onPublish?.(post.id)}
+              className={ACTION_CLASS}
+            >
+              Publish
+            </button>
+          ) : null}
+          {state === "failed" ? (
+            <span aria-hidden="true" className="rounded-sm border border-border px-2 py-0.5">
+              ↻ Regenerate
+            </span>
+          ) : null}
+        </span>
+      </footer>
+
+      {confirming ? (
+        <ApprovalConfirm
+          flags={post.reviewFlags ?? []}
+          topic={post.topic}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => {
+            setConfirming(false);
+            onApprove?.(post.id, true);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+// The acknowledgment gate (design-lock §3). There is no fact-check agent in v1,
+// so this dialog *is* the medical-accuracy safeguard — which is why confirming
+// is deliberately two deliberate acts, a tick and a click, rather than one
+// button that can be clicked past on reflex.
+//
+// The wording acknowledges that a human looked. It never says the claims are
+// correct, because acknowledging does not make them so.
+// Rendered inline beneath the card rather than as an overlay: the flags belong
+// to *this* Post, and in a kanban column the surrounding card is the context
+// that makes them legible. Deliberately no `aria-modal` — it does not trap
+// focus or inert the page, and claiming otherwise would misdescribe it.
+function ApprovalConfirm({
+  flags,
+  topic,
+  onCancel,
+  onConfirm,
+}: {
+  flags: ReviewFlag[];
+  topic: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [acknowledged, setAcknowledged] = useState(false);
+
+  return (
+    <div
+      role="dialog"
+      aria-label={`Review flags before approving — ${topic}`}
+      className="mt-2 flex flex-col gap-3 rounded-sm border border-warning/35 bg-warning/5 p-4"
+    >
+      <p className="text-sm font-semibold text-text">
+        This post has {flags.length} claim{flags.length === 1 ? "" : "s"} flagged for
+        review.
+      </p>
+
+      {/* every claim with its reason — a claim alone gives nothing to act on */}
+      <ul className="flex flex-col gap-2">
+        {flags.map((flag, i) => (
+          <li key={i} className="text-sm text-text">
+            <span className="font-semibold">&ldquo;{flag.claim}&rdquo;</span>
+            <span aria-hidden="true"> → </span>
+            <span className="text-muted">{flag.reason}</span>
+          </li>
+        ))}
+      </ul>
+
+      <label className="flex items-start gap-2 text-sm text-text">
+        <input
+          type="checkbox"
+          checked={acknowledged}
+          onChange={(e) => setAcknowledged(e.target.checked)}
+          className="mt-0.5 accent-accent"
+        />
+        <span>
+          I&rsquo;ve reviewed these claims and take responsibility for approving them.
+        </span>
+      </label>
+
+      <div className="flex justify-end gap-2 text-xs">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-sm px-3 py-1 font-semibold text-muted hover:bg-surface hover:text-text"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={!acknowledged}
+          onClick={onConfirm}
+          className="rounded-sm bg-accent px-3 py-1 font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          I&rsquo;ve reviewed these — approve
+        </button>
+      </div>
+    </div>
   );
 }

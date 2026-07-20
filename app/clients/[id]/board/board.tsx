@@ -24,7 +24,7 @@ import { MonthGrid } from "./month-grid";
 
 export type BoardProps = Pick<
   PostCardProps,
-  "onEditField" | "onEditHashtags" | "onEditSlide"
+  "onEditField" | "onEditHashtags" | "onEditSlide" | "onApprove" | "onPublish"
 > & {
   posts: SerializedPost[];
   // The date the calendar modes anchor on, as an ISO string. Injected rather
@@ -54,6 +54,8 @@ export function Board({
   onEditField,
   onEditHashtags,
   onEditSlide,
+  onApprove,
+  onPublish,
 }: BoardProps) {
   // Seeded from the URL alone, because the server renders this too and cannot
   // see localStorage. The stored preference is folded in on mount below.
@@ -72,7 +74,7 @@ export function Board({
     onViewChange?.(next);
   };
 
-  const editing = { onEditField, onEditHashtags, onEditSlide };
+  const editing = { onEditField, onEditHashtags, onEditSlide, onApprove, onPublish };
 
   return (
     <div className="flex flex-col gap-4">

@@ -3,8 +3,10 @@
 **Status:** accepted — human sign-off recorded on issue #7 (2026-07-20)
 **Amended:** §2 inline editing, on issue #8 (2026-07-20) — see the note in that section
 **Added to:** §2 calendar-mode rules, on issue #9 (2026-07-20)
+**Added to:** §1 published read-only, §3 gate as built, on issue #10 (2026-07-20)
 **Source:** operator prototype `Content Back-Office.dc.html`, "teal clinical" theme set
-**Consumed by:** #8 (kanban), #9 (week-list, month-grid, editor drawer)
+**Consumed by:** #8 (kanban), #9 (week-list, month-grid, editor drawer),
+#10 (status lifecycle + approval gate)
 
 This is the committed visual baseline. The **Post** card is rendered in three
 places — kanban column, week-list row, and the editor drawer — so it is
@@ -177,6 +179,37 @@ accidentally:
 
 Acknowledging records that a human looked. It does not mark the claim true, and
 no copy in the UI should imply that it does.
+
+### Added 2026-07-20 (issue #10) — the gate as built
+
+The spec above was implemented as written. Four things it did not settle, which
+building it forced:
+
+- **The confirmation renders inline beneath the card, not as an overlay**, and
+  deliberately carries no `aria-modal`. The flags belong to *this* Post, and in
+  a kanban column the surrounding card is the context that makes them legible.
+  It does not trap focus or inert the page, so claiming `aria-modal` would
+  misdescribe it — and in the month-grid drawer it would nest a modal inside a
+  modal.
+- **`published` recessing uses `color-mix` over two existing tokens**
+  (`surface` 45% into `surface-raised`) rather than a new `surface-sunk` token —
+  the same technique the review-flag border already uses, so it still moves with
+  the theme (ADR-0003).
+- **A published Post renders its copy as plain text, not disabled inputs.** The
+  record stays fully readable, and there is no affordance suggesting an edit
+  that would be refused. The data layer refuses it too (`lib/posts.ts`), so
+  read-only is a guarantee rather than a UI convention.
+- **The footer's "draft, flags acknowledged → Flags reviewed" row is
+  unreachable in practice.** Acknowledging and approving are one action, so a
+  draft never carries `flagsAcknowledgedAt`; and nothing walks a Post back. The
+  state is implemented and tested anyway, because the badge's `⚑ n reviewed`
+  form *is* reachable — it is what an approved or published Post shows.
+
+**Approvability is derived, never assumed.** `canApprove()`
+(`lib/post-status.ts`) decides whether the Approve action renders at all, and
+the same function guards the write, so the footer and the database cannot
+disagree about what is legal. A generation-failed Post is not approvable: its
+route out is regeneration (#11), not queuing an empty slot.
 
 ## 4. Per-Client brand overlay
 

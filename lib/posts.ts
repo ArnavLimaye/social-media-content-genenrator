@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/db";
 import type { Post } from "@/generated/prisma/client";
+import {
+  canApprove,
+  canTransition,
+  isEditable,
+  needsAcknowledgment,
+} from "@/lib/post-status";
 
 // Deep module behind the Board (issue #8): reads a Client's Posts and owns the
 // inline-edit persistence. The Board UI is a thin shell over this — a small
@@ -112,6 +118,7 @@ export async function updatePostField(
   if (!SCALAR_FIELDS.has(field)) {
     throw new Error(`updatePostField: unknown field "${field}"`);
   }
+  await assertEditable(postId);
   await prisma.post.update({ where: { id: postId }, data: { [field]: value } });
 }
 
@@ -121,6 +128,7 @@ export async function updatePostHashtags(
   postId: string,
   hashtags: string[],
 ): Promise<void> {
+  await assertEditable(postId);
   await prisma.post.update({ where: { id: postId }, data: { hashtags } });
 }
 
@@ -136,7 +144,87 @@ export async function updatePostSlide(
   value: string,
 ): Promise<void> {
   const post = await prisma.post.findUniqueOrThrow({ where: { id: postId } });
+  if (!isEditable(post.status)) {
+    throw new Error(`post ${postId} is published and read-only`);
+  }
   const slides = (post.slides as Slide[] | null) ?? [];
   const next = setSlideField(slides, index, field, value);
   await prisma.post.update({ where: { id: postId }, data: { slides: next } });
+}
+
+// -----------------------------------------------------------------------------
+// Lifecycle (issue #10). draft → approved → published, with the review-flag
+// acknowledgment gate on the first step.
+//
+// The rules live in `lib/post-status.ts` as pure logic; these are the thin
+// shells that load the Post, consult those rules, and record the timestamps.
+// They enforce rather than assume: the UI hides the illegal affordances, but a
+// server action reaching this module directly is still refused. The gate is the
+// v1 medical-accuracy safeguard, so it must not be bypassable by a caller.
+
+// Advance a draft to `approved`. `acknowledged` is the operator's single
+// explicit sign-off on the Post's review flags, and is only meaningful when the
+// Post carries unacknowledged flags — approving clean copy passes `false`.
+//
+// `flagsAcknowledgedAt` is written only when this call is what cleared the
+// flags, so the timestamp always means "a human reviewed these claims, then".
+export async function approvePost(
+  postId: string,
+  acknowledged: boolean,
+): Promise<void> {
+  const post = await loadForLifecycle(postId);
+
+  if (!canApprove(post, acknowledged)) {
+    throw new Error(
+      `approvePost: post ${postId} cannot be approved (status "${post.status}", ` +
+        `${post.reviewFlags?.length ?? 0} review flags, acknowledged=${acknowledged})`,
+    );
+  }
+
+  const clearsFlags = acknowledged && needsAcknowledgment(post);
+  await prisma.post.update({
+    where: { id: postId },
+    data: {
+      status: "approved",
+      ...(clearsFlags ? { flagsAcknowledgedAt: new Date() } : {}),
+    },
+  });
+}
+
+// Mark an approved Post published. Publishing is manual in v1 — there is no
+// scheduler — so this records that the operator posted it, not that the app did.
+export async function publishPost(postId: string): Promise<void> {
+  const post = await loadForLifecycle(postId);
+
+  if (!canTransition(post.status, "published")) {
+    throw new Error(
+      `publishPost: illegal transition ${post.status} → published for post ${postId}`,
+    );
+  }
+
+  await prisma.post.update({
+    where: { id: postId },
+    data: { status: "published", publishedAt: new Date() },
+  });
+}
+
+// Shared guard for the inline-edit writers: a published Post is the record of
+// what went out and must not be silently altered.
+async function assertEditable(postId: string): Promise<void> {
+  const { status } = await prisma.post.findUniqueOrThrow({
+    where: { id: postId },
+    select: { status: true },
+  });
+  if (!isEditable(status)) {
+    throw new Error(`post ${postId} is published and read-only`);
+  }
+}
+
+async function loadForLifecycle(postId: string) {
+  const post = await prisma.post.findUniqueOrThrow({ where: { id: postId } });
+  return {
+    ...post,
+    reviewFlags: post.reviewFlags as ReviewFlag[] | null,
+    slides: post.slides as Slide[] | null,
+  };
 }

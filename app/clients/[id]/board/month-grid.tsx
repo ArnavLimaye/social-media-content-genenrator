@@ -28,7 +28,7 @@ import { PostDrawer } from "./post-drawer";
 
 export type MonthGridProps = Pick<
   PostCardProps,
-  "onEditField" | "onEditHashtags" | "onEditSlide"
+  "onEditField" | "onEditHashtags" | "onEditSlide" | "onApprove" | "onPublish"
 > & {
   posts: SerializedPost[];
   today: string;

@@ -14,7 +14,7 @@ import { PostCard, type PostCardProps } from "./post-card";
 
 export type KanbanProps = Pick<
   PostCardProps,
-  "onEditField" | "onEditHashtags" | "onEditSlide"
+  "onEditField" | "onEditHashtags" | "onEditSlide" | "onApprove" | "onPublish"
 > & {
   posts: SerializedPost[];
 };
@@ -25,7 +25,7 @@ const COLUMNS: Array<{ key: string; label: string; statuses: string[] }> = [
   { key: "published", label: "Published", statuses: ["published"] },
 ];
 
-export function Kanban({ posts, onEditField, onEditHashtags, onEditSlide }: KanbanProps) {
+export function Kanban({ posts, ...editing }: KanbanProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-3">
       {COLUMNS.map((col) => {
@@ -38,13 +38,7 @@ export function Kanban({ posts, onEditField, onEditHashtags, onEditSlide }: Kanb
             </h2>
             <div className="flex flex-col gap-3">
               {colPosts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  onEditField={onEditField}
-                  onEditHashtags={onEditHashtags}
-                  onEditSlide={onEditSlide}
-                />
+                <PostCard key={post.id} post={post} {...editing} />
               ))}
             </div>
           </section>
