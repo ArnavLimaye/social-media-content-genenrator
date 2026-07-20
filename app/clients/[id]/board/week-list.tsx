@@ -20,7 +20,7 @@ import { PeriodNav } from "./period-nav";
 
 export type WeekListProps = Pick<
   PostCardProps,
-  "onEditField" | "onEditHashtags" | "onEditSlide"
+  "onEditField" | "onEditHashtags" | "onEditSlide" | "onApprove" | "onPublish"
 > & {
   posts: SerializedPost[];
   today: string;

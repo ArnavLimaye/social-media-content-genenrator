@@ -5,7 +5,13 @@ import { BrandOverlay } from "@/app/brand-overlay";
 import { prisma } from "@/lib/db";
 import { listPostsForClient } from "@/lib/posts";
 import { BoardClient } from "./board-client";
-import { editPostField, editPostHashtags, editPostSlide } from "./actions";
+import {
+  approvePostAction,
+  editPostField,
+  editPostHashtags,
+  editPostSlide,
+  publishPostAction,
+} from "./actions";
 
 // Screen 3 (issues #8, #9) — the Board: one view over a Client's Posts with
 // switchable kanban / week-list / month-grid modes. A server component that
@@ -56,6 +62,8 @@ export default async function BoardPage({
             onEditField={editPostField}
             onEditHashtags={editPostHashtags}
             onEditSlide={editPostSlide}
+            onApprove={approvePostAction.bind(null, client.id)}
+            onPublish={publishPostAction.bind(null, client.id)}
           />
         </div>
       </BrandOverlay>

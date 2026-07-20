@@ -18,7 +18,7 @@ import { PostCard, type PostCardProps } from "./post-card";
 
 export type PostDrawerProps = Pick<
   PostCardProps,
-  "onEditField" | "onEditHashtags" | "onEditSlide"
+  "onEditField" | "onEditHashtags" | "onEditSlide" | "onApprove" | "onPublish"
 > & {
   post: SerializedPost;
   onClose: () => void;
