@@ -60,6 +60,7 @@ const STRUCTURAL_SUFFIXES = new Set([
   "b", "t", "l", "r", "x", "y", // border sides
   "0", "2", "4", "8", // border widths
   "solid", "dashed", "dotted", "double", "none", "hidden", // border styles
+  "transparent", // the CSS keyword — not a color token, not a hardcoded value
   "xs", "sm", "base", "lg", "xl", "2xl", "3xl", // text sizes
   "left", "center", "right", "justify", // text alignment
   "wrap", "nowrap", "balance", "pretty", // text wrapping

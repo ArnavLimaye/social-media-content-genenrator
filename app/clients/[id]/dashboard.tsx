@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { Client } from "@/generated/prisma/client";
 import { Card, ClinicTile, MicroLabel } from "@/app/ui";
 
@@ -75,6 +76,12 @@ export function ClientDashboard({
               </div>
             ) : null}
           </div>
+          <Link
+            href={`/clients/${client.id}/board`}
+            className="rounded-sm px-3 py-1.5 text-sm font-semibold text-muted hover:bg-surface hover:text-text"
+          >
+            Board →
+          </Link>
         </header>
       </Card>
 

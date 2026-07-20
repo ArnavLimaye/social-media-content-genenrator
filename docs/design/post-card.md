@@ -1,6 +1,7 @@
 # Design lock: Post card, review flags, brand overlay
 
 **Status:** accepted — human sign-off recorded on issue #7 (2026-07-20)
+**Amended:** §2 inline editing, on issue #8 (2026-07-20) — see the note in that section
 **Source:** operator prototype `Content Back-Office.dc.html`, "teal clinical" theme set
 **Consumed by:** #8 (kanban / month-grid / week-list), #9 (editor drawer)
 
@@ -89,11 +90,26 @@ by *color*, not by an icon: `creative` is accent-outlined at 8% accent fill;
 `photo` is neutral `border` on `surface`. The kind is repeated as uppercase
 text inside the chip, so the distinction is never color-only.
 
-**Inline editing** (week-list and drawer; not kanban). `topic`, `hook`, and
-`caption` are borderless inputs that reveal a `border` outline on hover and an
-`accent` outline with a `surface` fill on focus. They must occupy the same box
-as the static text — no layout shift between reading and editing. Negative
-`margin-left` offsets the input padding so text stays optically aligned.
+**Inline editing** (kanban, week-list, and drawer). `hook`, `caption`, `cta`,
+`hashtags`, and each slide's `heading` / `description` are borderless fields
+that reveal a `border` outline on hover and an `accent` outline with a `surface`
+fill on focus. They must occupy the same box as the static text — no layout
+shift between reading and editing. Negative `margin-left` offsets the field
+padding so text stays optically aligned. An edit commits on blur; an unchanged
+field commits nothing.
+
+Free-text fields that routinely run past one line — `caption` and each slide's
+`description` — are **auto-sizing textareas** that grow to fit their content, so
+no copy is visually truncated. Single-line fields (`hook`, `cta`, `hashtags`,
+slide `heading`) stay inputs. `topic` is not editable on the card; it is the
+post's identity in a kanban column.
+
+> **Amended 2026-07-20 (issue #8).** This section originally read "week-list and
+> drawer; not kanban" and named `topic`/`hook`/`caption`. Issue #8's acceptance
+> criteria put inline editing on the Board, which won; the editable set is the
+> one listed above. The auto-sizing textarea rule was added in the same slice,
+> after single-line inputs were found to clip multi-paragraph captions. #9
+> inherits this amended rule, not the original.
 
 **Footer** carries a status note left, actions right:
 
