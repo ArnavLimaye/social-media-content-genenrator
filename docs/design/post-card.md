@@ -2,8 +2,9 @@
 
 **Status:** accepted — human sign-off recorded on issue #7 (2026-07-20)
 **Amended:** §2 inline editing, on issue #8 (2026-07-20) — see the note in that section
+**Added to:** §2 calendar-mode rules, on issue #9 (2026-07-20)
 **Source:** operator prototype `Content Back-Office.dc.html`, "teal clinical" theme set
-**Consumed by:** #8 (kanban / month-grid / week-list), #9 (editor drawer)
+**Consumed by:** #8 (kanban), #9 (week-list, month-grid, editor drawer)
 
 This is the committed visual baseline. The **Post** card is rendered in three
 places — kanban column, week-list row, and the editor drawer — so it is
@@ -123,6 +124,30 @@ post's identity in a kanban column.
 | failed | Planner outline saved · copy failed | ↻ Regenerate |
 
 `published` notes render in `success` at weight 600; all others `text-muted`.
+
+### Added 2026-07-20 (issue #9) — where the card appears, and where it does not
+
+The card renders in three places, as stated above: kanban column, week-list row,
+editor drawer. Two clarifications that #9 settled by building it:
+
+- **The date line stays kanban-only**, as the diagram says. In the calendar
+  modes the card's position *is* its date, and rendering the line as well put
+  "Wed · Jul 22" twice on one screen. `PostCard` takes `showDateLine`, default
+  on; week-list and drawer pass it off.
+- **The month grid does not render the card at all.** A calendar square cannot
+  hold a caption and five slides, so a cell carries a compact summary — format
+  badge, topic (2-line clamp), status badge, and a mute `⚑ n` flag marker whose
+  accessible name spells out the count. The summary is display-only; clicking it
+  opens the drawer, which is where the editable card lives. Card and summary
+  share one badge vocabulary (`post-badges.tsx`) so the two can never disagree
+  about what a status looks like.
+
+**Generation-failed is derived, not stored.** The `failed` row in the status and
+footer tables above has no matching value in the database: when the copywriter
+call fails, the orchestrator saves the planner's outline, leaves every copy field
+null, and keeps `status = "draft"`. So the shell variant, the status badge, and
+the footer note all key off `postState()` (`lib/post-state.ts`), never off
+`post.status` directly.
 
 ## 3. Review-flag treatment
 

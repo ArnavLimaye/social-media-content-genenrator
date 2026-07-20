@@ -4,21 +4,28 @@ import { Shell } from "@/app/shell";
 import { BrandOverlay } from "@/app/brand-overlay";
 import { prisma } from "@/lib/db";
 import { listPostsForClient } from "@/lib/posts";
-import { Board } from "./board";
+import { BoardClient } from "./board-client";
 import { editPostField, editPostHashtags, editPostSlide } from "./actions";
 
-// Screen 3a (issue #8) — the Board, a per-Client kanban over that Client's
-// Posts. A server component that loads the clinic + its posts, wraps them in
-// the per-Client brand overlay, and hands the real edit server actions to the
-// <Board> client component. The board owns grouping + inline editing; this
-// page is just the shell that connects a Client to its posts and actions.
+// Screen 3 (issues #8, #9) — the Board: one view over a Client's Posts with
+// switchable kanban / week-list / month-grid modes. A server component that
+// loads the clinic + its posts, wraps them in the per-Client brand overlay, and
+// hands the real edit server actions down. The modes own grouping, placement,
+// and inline editing; this page is just the shell that connects a Client to its
+// posts and actions.
+//
+// `today` is resolved here, on the server, so the calendar modes anchor on one
+// agreed date instead of each client re-reading its own clock.
 // Token-derived classes only (ADR-0003).
 export default async function BoardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const { id } = await params;
+  const { view } = await searchParams;
   const client = await prisma.client.findUnique({ where: { id } });
   if (!client) notFound();
 
@@ -42,8 +49,10 @@ export default async function BoardPage({
               ← Dashboard
             </Link>
           </div>
-          <Board
+          <BoardClient
             posts={posts}
+            today={new Date().toISOString()}
+            urlView={view ?? null}
             onEditField={editPostField}
             onEditHashtags={editPostHashtags}
             onEditSlide={editPostSlide}
