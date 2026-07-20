@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { prisma } from "@/lib/db";
 import { generateWeek } from "@/lib/generate-week";
 import { DOMAIN_PROFILE } from "@/lib/prompts/domain";
-import type { AgentCall, Caller } from "@/lib/agent-json";
+import { fakeCaller } from "./support/fake-caller";
 
 // Issue #5 — the generate-week orchestrator: Planner → 3 draft Posts, written
 // with a Plan in a single transaction. Ollama is injected (via agent-json's
@@ -11,22 +11,6 @@ import type { AgentCall, Caller } from "@/lib/agent-json";
 // These tests exercise behavior through the public `generateWeek` interface:
 // what the orchestrator produces, not how it calls the model or writes rows.
 // They survive any internal refactor.
-
-type Scripted = { text: string; promptTokens: number; outputTokens: number };
-
-// A fake caller that pops scripted responses in call order, recording each
-// AgentCall so tests can assert what the agents were told. No fetch, no network.
-function fakeCaller(responses: Scripted[]) {
-  const calls: AgentCall[] = [];
-  const queue = [...responses];
-  const caller: Caller = async (call) => {
-    calls.push(call);
-    const next = queue.shift();
-    if (!next) throw new Error("fakeCaller ran out of scripted responses");
-    return next;
-  };
-  return { caller, calls };
-}
 
 const PLANNER_OUTPUT = {
   posts: [

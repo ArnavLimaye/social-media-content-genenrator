@@ -63,9 +63,19 @@ not a table (see ADR-0001). For a reel, slides are script beats.
 The atomic result of one "Generate this week" click: one Plan (`period="week"`)
 plus three draft **Posts**, created together in a single transaction. Not an empty
 container the operator pre-creates. A client is blocked from a second plan for the
-same week; an explicit **Regenerate** replaces that week's *draft* posts only
-(never approved/published ones). `period="month"` exists in the field but is v2.
+same week — enforced by a unique index on `weekStart` (the week's Monday at UTC
+midnight), not just by the orchestrator. `period="month"` exists in the field but
+is v2. See ADR-0005.
 _Avoid_: Batch, campaign, schedule.
+
+**Regenerate**:
+An explicit, per-week redo: it discards that week's *draft* **Posts**, reuses the
+same **Plan**, and re-plans **only the days those drafts occupied** — approved and
+published Posts are never touched, and their days are never re-planned. Destructive,
+so the dashboard confirms first and states how many drafts go. Generation runs
+before the delete so a failed regeneration is a no-op (ADR-0005). Per-post
+regeneration is out of scope for the MVP.
+_Avoid_: Retry, refresh, re-run.
 
 **Image Idea**:
 A copywriter-generated text suggestion for one visual asset on a **Slide**, tagged

@@ -40,9 +40,20 @@ model Plan {
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId  String
   period    String   // "week" | "month" (month is v2)
+  // The week this Plan covers, as its Monday at UTC midnight — the *key* for
+  // the week, deliberately stripped of the time component so two generations
+  // on the same Monday collide (issue #11). Null for period="month" (v2),
+  // which has no week; SQLite treats NULLs as distinct under a unique index,
+  // so month plans never collide with each other.
+  weekStart DateTime?
   label     String   // e.g. "Week of 2026-07-20" — human-readable
   posts     Post[]
   createdAt DateTime @default(now())
+
+  // A Client may hold only one Plan per week (issue #11). Enforced here rather
+  // than only in the orchestrator: two "Week of ..." columns for the same dates
+  // is a data-model error, not a UI mistake.
+  @@unique([clientId, period, weekStart])
 }
 
 model Post {

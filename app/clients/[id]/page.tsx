@@ -2,9 +2,11 @@ import { notFound } from "next/navigation";
 import { Shell } from "@/app/shell";
 import { prisma } from "@/lib/db";
 import { generationBlocker } from "@/lib/clients";
+import { weekPlanSummary } from "@/lib/generate-week";
+import { weekStartFor } from "@/lib/schedule-dates";
 import { BrandOverlay } from "@/app/brand-overlay";
 import { ClientDashboard } from "./dashboard";
-import { generateThisWeek } from "./actions";
+import { generateThisWeek, regenerateThisWeek } from "./actions";
 
 // Screen 2 (issue #6) — the Client dashboard. A server component that loads
 // the clinic, computes the generation prerequisite blocker, and renders the
@@ -23,6 +25,9 @@ export default async function ClientDetailPage({
   if (!client) notFound();
 
   const blockedReason = generationBlocker(client);
+  // Whether this week is already planned decides which action the dashboard
+  // offers, and how many drafts its confirmation has to account for (#11).
+  const weekPlan = await weekPlanSummary(client.id, weekStartFor(new Date()));
 
   return (
     <Shell>
@@ -35,7 +40,9 @@ export default async function ClientDetailPage({
             colors: client.colors,
           }}
           blockedReason={blockedReason}
+          weekPlan={weekPlan}
           onGenerate={generateThisWeek}
+          onRegenerate={regenerateThisWeek}
         />
       </BrandOverlay>
     </Shell>

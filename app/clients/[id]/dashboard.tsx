@@ -35,21 +35,35 @@ type DashboardState =
 
 type Identity = Pick<Client, "id" | "name" | "logoUrl" | "colors">;
 
+// The Plan already covering the week this dashboard generates for, if any
+// (issue #11). Its presence is what turns Generate into Regenerate;
+// `draftCount` is how many drafts a regeneration would discard — the number the
+// confirmation has to state before the operator commits.
+export type WeekPlan = { label: string; draftCount: number };
+
 export function ClientDashboard({
   client,
   blockedReason,
+  weekPlan,
   onGenerate,
+  onRegenerate,
 }: {
   client: Identity;
   blockedReason: string | null;
+  weekPlan: WeekPlan | null;
   onGenerate: (clientId: string) => Promise<GenerateResult>;
+  onRegenerate: (clientId: string) => Promise<GenerateResult>;
 }) {
   const [state, setState] = useState<DashboardState>({ kind: "idle" });
+  // Regenerate is destructive, so the first click opens this confirmation
+  // rather than discarding anything — the same two-step shape the review-flag
+  // approval gate uses on the board.
+  const [confirming, setConfirming] = useState(false);
 
-  async function handleGenerate() {
+  async function run(action: (clientId: string) => Promise<GenerateResult>) {
     if (state.kind === "generating") return; // prevent double-submit
     setState({ kind: "generating" });
-    const result = await onGenerate(client.id);
+    const result = await action(client.id);
     if (result.ok) {
       setState({ kind: "success", posts: result.posts, warnings: result.warnings });
     } else {
@@ -94,14 +108,46 @@ export function ClientDashboard({
           </p>
         ) : null}
 
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={busy || blockedReason !== null}
-          className="self-start rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-60"
-        >
-          {busy ? "Generating…" : "Generate this week"}
-        </button>
+        {/* A week may hold only one Plan, so once this week has one the
+            generate affordance is replaced rather than left to be refused —
+            and the reason travels with its remedy. */}
+        {weekPlan && !blockedReason ? (
+          <p role="alert" className="text-sm text-muted">
+            This week already has a plan ({weekPlan.label}). Regenerate replaces its
+            drafts.
+          </p>
+        ) : null}
+
+        {weekPlan && !blockedReason ? (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            disabled={busy}
+            className="self-start rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-60"
+          >
+            {busy ? "Regenerating…" : "Regenerate this week"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => run(onGenerate)}
+            disabled={busy || blockedReason !== null}
+            className="self-start rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-60"
+          >
+            {busy ? "Generating…" : "Generate this week"}
+          </button>
+        )}
+
+        {confirming && weekPlan ? (
+          <RegenerateConfirm
+            draftCount={weekPlan.draftCount}
+            onCancel={() => setConfirming(false)}
+            onConfirm={() => {
+              setConfirming(false);
+              void run(onRegenerate);
+            }}
+          />
+        ) : null}
 
         {state.kind === "generating" ? (
           <p className="text-sm text-muted" role="status">
@@ -119,6 +165,52 @@ export function ClientDashboard({
       {state.kind === "success" ? (
         <DraftList posts={state.posts} warnings={state.warnings} />
       ) : null}
+    </div>
+  );
+}
+
+// The confirmation standing between the operator and a destructive action. It
+// states the count because "Regenerate this week" alone does not tell you
+// whether you are discarding one draft or three — and it names what survives,
+// since the fear this dialog has to answer is "will this eat my approved work?".
+function RegenerateConfirm({
+  draftCount,
+  onCancel,
+  onConfirm,
+}: {
+  draftCount: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const plural = draftCount === 1 ? "draft" : "drafts";
+  return (
+    <div
+      role="dialog"
+      aria-label="Confirm regenerate"
+      className="flex flex-col gap-3 rounded-sm border border-border bg-surface-raised p-4"
+    >
+      <p className="text-sm text-text">
+        Replace {draftCount} {plural} with freshly generated ones?
+      </p>
+      <p className="text-sm text-muted">
+        Approved and published posts in this week are kept.
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="rounded-sm bg-danger px-3 py-1.5 text-sm font-semibold text-on-primary"
+        >
+          Replace {draftCount} {plural}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-sm px-3 py-1.5 text-sm font-semibold text-muted hover:bg-surface hover:text-text"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

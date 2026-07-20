@@ -49,7 +49,9 @@ describe("ClientDashboard: clinic identity", () => {
       <ClientDashboard
         client={fakeClient()}
         blockedReason={null}
+        weekPlan={null}
         onGenerate={noopGenerate}
+        onRegenerate={noopGenerate}
       />,
     );
 
@@ -71,7 +73,9 @@ describe("ClientDashboard: clinic identity", () => {
       <ClientDashboard
         client={fakeClient({ name: "Little Smiles Pediatric", logoUrl: null })}
         blockedReason={null}
+        weekPlan={null}
         onGenerate={noopGenerate}
+        onRegenerate={noopGenerate}
       />,
     );
 
@@ -88,7 +92,9 @@ describe("ClientDashboard: clinic identity", () => {
       <ClientDashboard
         client={fakeClient({ colors: "#0A6E7C, #FFFFFF" })}
         blockedReason={null}
+        weekPlan={null}
         onGenerate={noopGenerate}
+        onRegenerate={noopGenerate}
       />,
     );
 
@@ -101,7 +107,9 @@ describe("ClientDashboard: clinic identity", () => {
       <ClientDashboard
         client={fakeClient()}
         blockedReason={null}
+        weekPlan={null}
         onGenerate={noopGenerate}
+        onRegenerate={noopGenerate}
       />,
     );
 
@@ -115,7 +123,9 @@ describe("ClientDashboard: clinic identity", () => {
       <ClientDashboard
         client={fakeClient()}
         blockedReason={"Wednesday pillar is missing — add it before generating."}
+        weekPlan={null}
         onGenerate={noopGenerate}
+        onRegenerate={noopGenerate}
       />,
     );
 
@@ -140,7 +150,9 @@ describe("ClientDashboard: clinic identity", () => {
       <ClientDashboard
         client={fakeClient()}
         blockedReason={null}
+        weekPlan={null}
         onGenerate={onGenerate}
+        onRegenerate={noopGenerate}
       />,
     );
 
@@ -201,7 +213,9 @@ describe("ClientDashboard: clinic identity", () => {
       <ClientDashboard
         client={fakeClient()}
         blockedReason={null}
+        weekPlan={null}
         onGenerate={onGenerate}
+        onRegenerate={noopGenerate}
       />,
     );
 
@@ -241,7 +255,9 @@ describe("ClientDashboard: clinic identity", () => {
       <ClientDashboard
         client={fakeClient()}
         blockedReason={null}
+        weekPlan={null}
         onGenerate={onGenerate}
+        onRegenerate={noopGenerate}
       />,
     );
 
@@ -263,7 +279,9 @@ describe("ClientDashboard: clinic identity", () => {
       <ClientDashboard
         client={fakeClient()}
         blockedReason={null}
+        weekPlan={null}
         onGenerate={onGenerate}
+        onRegenerate={noopGenerate}
       />,
     );
 
