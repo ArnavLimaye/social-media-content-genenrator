@@ -21,6 +21,9 @@ function fakeClient(overrides: Partial<Identity> = {}): Identity {
     name: "Lakeside Dental",
     logoUrl: "https://example.com/logo.png",
     colors: "#0A6E7C",
+    location: "Bend, OR",
+    audience: "Adults 30–55",
+    pillars: ["Patient education", "Behind the smile", "Ask the dentist"],
     ...overrides,
   };
 }
@@ -50,6 +53,8 @@ describe("ClientDashboard: clinic identity", () => {
         client={fakeClient()}
         blockedReason={null}
         weekPlan={null}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={noopGenerate}
         onRegenerate={noopGenerate}
       />,
@@ -60,9 +65,12 @@ describe("ClientDashboard: clinic identity", () => {
     const logo = screen.getByRole("img", { name: /lakeside dental/i });
     expect(logo).toHaveAttribute("src", "https://example.com/logo.png");
 
-    // brand accent is surfaced (the client's colors drive the accent swatch)
-    expect(screen.getByLabelText(/brand accent/i)).toBeInTheDocument();
-    expect(screen.getByText("#0A6E7C")).toBeInTheDocument();
+    // the brand is surfaced as swatches, labelled with the colors they show
+    expect(screen.getByLabelText("Brand colors: #0A6E7C")).toBeInTheDocument();
+
+    // and the clinic's pillars, each tagged with the day it runs on
+    expect(screen.getByText("Patient education")).toBeInTheDocument();
+    expect(screen.getByText("MON")).toBeInTheDocument();
   });
 
   it("falls back to the clinic's initials when it has no logo", () => {
@@ -74,6 +82,8 @@ describe("ClientDashboard: clinic identity", () => {
         client={fakeClient({ name: "Little Smiles Pediatric", logoUrl: null })}
         blockedReason={null}
         weekPlan={null}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={noopGenerate}
         onRegenerate={noopGenerate}
       />,
@@ -93,13 +103,21 @@ describe("ClientDashboard: clinic identity", () => {
         client={fakeClient({ colors: "#0A6E7C, #FFFFFF" })}
         blockedReason={null}
         weekPlan={null}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={noopGenerate}
         onRegenerate={noopGenerate}
       />,
     );
 
-    const swatch = screen.getByLabelText(/brand accent/i);
-    expect(swatch.style.backgroundColor).toBe("");
+    // The FIRST swatch is the one the overlay actually applies, so it paints
+    // from `bg-accent` and carries no inline color. Any further colors are
+    // reference values with no token, and are painted from the stored string.
+    const swatches = screen.getByLabelText("Brand colors: #0A6E7C, #FFFFFF");
+    const [first, second] = Array.from(swatches.children) as HTMLElement[];
+    expect(first.style.backgroundColor).toBe("");
+    expect(first.className).toMatch(/bg-accent/);
+    expect(second.style.backgroundColor).not.toBe("");
   });
 
   it("renders a 'Generate this week' button", () => {
@@ -108,6 +126,8 @@ describe("ClientDashboard: clinic identity", () => {
         client={fakeClient()}
         blockedReason={null}
         weekPlan={null}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={noopGenerate}
         onRegenerate={noopGenerate}
       />,
@@ -124,6 +144,8 @@ describe("ClientDashboard: clinic identity", () => {
         client={fakeClient()}
         blockedReason={"Wednesday pillar is missing — add it before generating."}
         weekPlan={null}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={noopGenerate}
         onRegenerate={noopGenerate}
       />,
@@ -151,6 +173,8 @@ describe("ClientDashboard: clinic identity", () => {
         client={fakeClient()}
         blockedReason={null}
         weekPlan={null}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={onGenerate}
         onRegenerate={noopGenerate}
       />,
@@ -214,6 +238,8 @@ describe("ClientDashboard: clinic identity", () => {
         client={fakeClient()}
         blockedReason={null}
         weekPlan={null}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={onGenerate}
         onRegenerate={noopGenerate}
       />,
@@ -256,6 +282,8 @@ describe("ClientDashboard: clinic identity", () => {
         client={fakeClient()}
         blockedReason={null}
         weekPlan={null}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={onGenerate}
         onRegenerate={noopGenerate}
       />,
@@ -280,6 +308,8 @@ describe("ClientDashboard: clinic identity", () => {
         client={fakeClient()}
         blockedReason={null}
         weekPlan={null}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={onGenerate}
         onRegenerate={noopGenerate}
       />,

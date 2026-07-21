@@ -59,7 +59,13 @@ export type SerializedPost = Omit<
 
 // The scalar copy fields an inline edit can target. `hashtags` is handled
 // separately (it is a Json array, not a string column).
-export type ScalarField = "hook" | "caption" | "cta";
+//
+// `topic` is planner output rather than copywriter output, but it is edited the
+// same way and for the same reason: it is the line the operator reads first, so
+// it is the line they most often want to reword. The design makes it an inline
+// field in the week list and the drawer, and an affordance that looks editable
+// must actually persist.
+export type ScalarField = "topic" | "hook" | "caption" | "cta";
 
 // The fields of a single Slide an inline edit can target. Image ideas are not
 // in this set — the issue scopes editing to heading + description, plus the
@@ -119,7 +125,12 @@ export async function listPostsForClient(
 // Persist an inline edit of one scalar copy field (hook / caption / cta). The
 // field set is closed: a name outside it is a programmer error, not a silent
 // write to an arbitrary column.
-const SCALAR_FIELDS: ReadonlySet<ScalarField> = new Set(["hook", "caption", "cta"]);
+const SCALAR_FIELDS: ReadonlySet<ScalarField> = new Set([
+  "topic",
+  "hook",
+  "caption",
+  "cta",
+]);
 
 export async function updatePostField(
   postId: string,

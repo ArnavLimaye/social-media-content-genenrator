@@ -245,12 +245,14 @@ describe("PostCard: long copy is not visually truncated", () => {
 
     expect(screen.getByLabelText(/^Caption —/).tagName).toBe("TEXTAREA");
     expect(screen.getByLabelText(/^Slide 1 description —/).tagName).toBe("TEXTAREA");
+    // The hook is one sentence but a LONG one, and it is the field operators
+    // rewrite most — it wraps to two lines far more often than not.
+    expect(screen.getByLabelText(/^Hook —/).tagName).toBe("TEXTAREA");
   });
 
   it("keeps genuinely single-line fields as inputs", () => {
     render(<PostCard post={fakePost()} {...noopProps} />);
 
-    expect(screen.getByLabelText(/^Hook —/).tagName).toBe("INPUT");
     expect(screen.getByLabelText(/^CTA —/).tagName).toBe("INPUT");
     expect(screen.getByLabelText(/^Hashtags —/).tagName).toBe("INPUT");
     expect(screen.getByLabelText(/^Slide 1 heading —/).tagName).toBe("INPUT");

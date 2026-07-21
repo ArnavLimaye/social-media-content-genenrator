@@ -110,7 +110,7 @@ describe("Approval gate: a flagged Post requires explicit acknowledgment", () =>
     renderCard(flagged());
     fireEvent.click(screen.getByRole("button", { name: /approve/i }));
 
-    const confirm = screen.getByRole("button", { name: /reviewed/i });
+    const confirm = screen.getByRole("button", { name: /approve post/i });
     expect(confirm).toBeDisabled();
 
     fireEvent.click(screen.getByRole("checkbox"));
@@ -121,7 +121,7 @@ describe("Approval gate: a flagged Post requires explicit acknowledgment", () =>
     const { onApprove } = renderCard(flagged());
     fireEvent.click(screen.getByRole("button", { name: /approve/i }));
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: /reviewed/i }));
+    fireEvent.click(screen.getByRole("button", { name: /approve post/i }));
 
     expect(onApprove).toHaveBeenCalledWith("p1", true);
   });

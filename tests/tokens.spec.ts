@@ -25,6 +25,22 @@ import tailwindConfig from "@/tailwind.config";
 // deliberately exact-value assertions: the point of a design lock is that a
 // value change is a visible, reviewed diff, not an accident.
 
+// The Tailwind colors are FUNCTIONS of the opacity modifier (see tokens.ts), so
+// they cannot be compared as strings or walked with JSON.stringify — which
+// drops functions silently and would make a reachability check pass vacuously.
+// These two helpers resolve them at full opacity first.
+const color = (name: keyof typeof tailwindTheme.colors) => tailwindTheme.colors[name]({});
+
+function serializeTheme(): string {
+  const resolved = Object.fromEntries(
+    Object.keys(tailwindTheme.colors).map((k) => [
+      k,
+      color(k as keyof typeof tailwindTheme.colors),
+    ]),
+  );
+  return JSON.stringify({ ...tailwindTheme, colors: resolved });
+}
+
 describe("theme tokens: the locked design values", () => {
   it("commits the approved light palette", () => {
     expect(lightTokens["--color-primary"]).toBe("#0f766e");
@@ -104,29 +120,28 @@ describe("theme tokens: single source of truth", () => {
   });
 
   it("maps Tailwind theme to CSS vars, never hardcoded values", () => {
-    expect(tailwindTheme.colors.primary).toBe("var(--color-primary)");
-    expect(tailwindTheme.colors.accent).toBe("var(--color-accent)");
-    expect(tailwindTheme.colors.surface).toBe("var(--color-surface)");
-    expect(tailwindTheme.colors.text).toBe("var(--color-text)");
+    expect(color("primary")).toBe("var(--color-primary)");
+    expect(color("accent")).toBe("var(--color-accent)");
+    expect(color("surface")).toBe("var(--color-surface)");
+    expect(color("text")).toBe("var(--color-text)");
     expect(tailwindTheme.fontFamily.sans).toBe("var(--font-sans)");
     expect(tailwindTheme.borderRadius.DEFAULT).toBe("var(--radius)");
 
     // no Tailwind theme value smuggles in a raw hex color
-    const allValues = JSON.stringify(tailwindTheme);
-    expect(allValues).not.toMatch(/#[0-9a-fA-F]{3,8}/);
+    expect(serializeTheme()).not.toMatch(/#[0-9a-fA-F]{3,8}/);
   });
 
   it("exposes every locked token to Tailwind as a var, so components never need arbitrary values", () => {
     // the split that replaced the ambiguous `muted`
-    expect(tailwindTheme.colors.border).toBe("var(--color-border)");
+    expect(color("border")).toBe("var(--color-border)");
     // keyed `muted` so call sites read `text-muted` rather than `text-text-muted`
-    expect(tailwindTheme.colors.muted).toBe("var(--color-text-muted)");
-    expect(tailwindTheme.colors["surface-raised"]).toBe("var(--color-surface-raised)");
+    expect(color("muted")).toBe("var(--color-text-muted)");
+    expect(color("surface-raised")).toBe("var(--color-surface-raised)");
     // foregrounds for filled backgrounds
-    expect(tailwindTheme.colors["on-primary"]).toBe("var(--color-on-primary)");
-    expect(tailwindTheme.colors["on-accent"]).toBe("var(--color-on-accent)");
+    expect(color("on-primary")).toBe("var(--color-on-primary)");
+    expect(color("on-accent")).toBe("var(--color-on-accent)");
     // status colors the Post card's flag + lifecycle treatment needs
-    expect(tailwindTheme.colors.warning).toBe("var(--color-warning)");
+    expect(color("warning")).toBe("var(--color-warning)");
     // geometry
     expect(tailwindTheme.borderRadius.sm).toBe("var(--radius-sm)");
     expect(tailwindTheme.borderRadius.pill).toBe("var(--radius-pill)");
@@ -135,10 +150,43 @@ describe("theme tokens: single source of truth", () => {
   });
 
   it("maps a Tailwind name for every canonical token, so none is unreachable from a class", () => {
-    const exposed = JSON.stringify(tailwindTheme);
+    const exposed = serializeTheme();
     for (const name of CANONICAL_TOKEN_NAMES) {
       expect(exposed, `${name} is not reachable from any Tailwind utility`).toContain(`var(${name})`);
     }
+  });
+
+  // The opacity modifier is why the colors are functions rather than plain
+  // strings. A bare `var(--color-accent)` carries no alpha, so Tailwind emits
+  // NO RULE AT ALL for `bg-accent/10` — the tinted chips, badges, and column
+  // surfaces the design is built from would silently render transparent, and no
+  // component test would notice because the class name is still in the markup.
+  //
+  // `color-mix(..., transparent)` is also the exact construction the design
+  // uses for every tint, so the two resolve to the same color — including when
+  // the brand overlay swaps `--color-accent` for a clinic's own hex.
+  it("composes an alpha over a token, so tinted surfaces actually emit CSS", () => {
+    expect(tailwindTheme.colors.accent({ opacityValue: "0.1" })).toBe(
+      "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+    );
+    expect(tailwindTheme.colors.warning({ opacityValue: "0.35" })).toBe(
+      "color-mix(in srgb, var(--color-warning) 35%, transparent)",
+    );
+    // binary floating point makes 0.03 * 100 = 3.0000000000000004
+    expect(tailwindTheme.colors.text({ opacityValue: "0.03" })).toBe(
+      "color-mix(in srgb, var(--color-text) 3%, transparent)",
+    );
+  });
+
+  // Tailwind does not always hand in a NUMBER: for a modifier-less `text-muted`
+  // it passes the literal string `var(--tw-text-opacity)`, which is unusable
+  // inside color-mix. Falling back to the opaque token is what a utility with no
+  // modifier means anyway.
+  it("falls back to the opaque token when the alpha is not a number", () => {
+    expect(tailwindTheme.colors.muted({ opacityValue: "var(--tw-text-opacity)" })).toBe(
+      "var(--color-text-muted)",
+    );
+    expect(tailwindTheme.colors.muted({})).toBe("var(--color-text-muted)");
   });
 
   it("is the source the Tailwind config actually consumes", () => {

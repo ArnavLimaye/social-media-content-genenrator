@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { tailwindTheme } from "@/lib/theme/tokens";
+import { tailwindTheme, typeScale } from "@/lib/theme/tokens";
 
 // Behavior D — a guard: no component hardcodes a color, radius, or font.
 //
@@ -61,17 +61,37 @@ const STRUCTURAL_SUFFIXES = new Set([
   "0", "2", "4", "8", // border widths
   "solid", "dashed", "dotted", "double", "none", "hidden", // border styles
   "transparent", // the CSS keyword — not a color token, not a hardcoded value
-  "xs", "sm", "base", "lg", "xl", "2xl", "3xl", // text sizes
+  "xs", "sm", "base", "lg", "xl", "2xl", "3xl", // Tailwind's default text sizes
+  // …and the design's own type scale. Derived from the token module rather than
+  // listed here, so adding a step cannot leave the guard rejecting a class that
+  // is in fact valid — the two can never drift.
+  ...Object.keys(typeScale),
   "left", "center", "right", "justify", // text alignment
   "wrap", "nowrap", "balance", "pretty", // text wrapping
   "ellipsis", "clip", // text overflow
 ]);
 
+// Comments are stripped before scanning. Ordinary English matches these
+// patterns — "click-outside-to-close" reads as the utility `to-close`, and a
+// comment explaining why a class was AVOIDED flags the very class it warns
+// about. A guard that fails on prose just teaches people to stop writing prose.
+//
+// The scan still covers the whole file rather than only className attributes,
+// because the shared recipes (`BUTTON_PRIMARY`, `CHIP_BASE`, the badge tone
+// map) are const strings — and those are exactly the class lists worth
+// guarding, since each one is used in many places.
+//
+// `//` is only treated as a comment when it is not preceded by `:`, so a URL in
+// a placeholder is not mistaken for one and does not swallow its line.
+export function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+}
+
 export function findUnknownTokenUtilities(src: string, knownColors: string[]): string[] {
   const known = new Set(knownColors);
   const hits: string[] = [];
   const re = new RegExp(`\\b(${COLOR_PREFIXES.join("|")})-([a-z0-9-]+)`, "g");
-  for (const m of src.matchAll(re)) {
+  for (const m of stripComments(src).matchAll(re)) {
     const [full, , suffix] = m;
     if (known.has(suffix) || STRUCTURAL_SUFFIXES.has(suffix)) continue;
     hits.push(full);
@@ -89,6 +109,37 @@ describe("token-vocabulary guard", () => {
     expect(
       findUnknownTokenUtilities(`<div className="border-b border-border bg-surface text-sm text-muted" />`, known),
     ).toEqual([]);
+    // …including the design's own type scale
+    expect(
+      findUnknownTokenUtilities(`<p className="text-body-lg text-heading" />`, known),
+    ).toEqual([]);
+  });
+
+  it("does not read prose in comments as class names", () => {
+    // English hyphenates. "click-outside-to-close" is not the utility
+    // `to-close`, and a comment naming a class it deliberately avoided must not
+    // fail the build for mentioning it.
+    const known = Object.keys(tailwindTheme.colors);
+    const src = `
+      // a click-outside-to-close scrim; border-t-on-primary reads as a bogus
+      // token to the guard, so the lit segment is set inline instead
+      <div className="border-border" />
+    `;
+    expect(findUnknownTokenUtilities(src, known)).toEqual([]);
+    // but a real class on the same file is still caught
+    expect(
+      findUnknownTokenUtilities(`${src}<div className="bg-hairline" />`, known),
+    ).toContain("bg-hairline");
+  });
+
+  it("keeps a URL in a placeholder from swallowing its line", () => {
+    const known = Object.keys(tailwindTheme.colors);
+    expect(
+      findUnknownTokenUtilities(
+        `<input placeholder="https://…" className="text-nope" />`,
+        known,
+      ),
+    ).toContain("text-nope");
   });
 
   it("no component names a color token outside the locked vocabulary", () => {

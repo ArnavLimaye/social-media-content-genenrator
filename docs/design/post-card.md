@@ -4,9 +4,50 @@
 **Amended:** §2 inline editing, on issue #8 (2026-07-20) — see the note in that section
 **Added to:** §2 calendar-mode rules, on issue #9 (2026-07-20)
 **Added to:** §1 published read-only, §3 gate as built, on issue #10 (2026-07-20)
+**Re-locked:** whole document re-derived from the prototype (2026-07-21) — see
+"Re-lock" below for what changed
 **Source:** operator prototype `Content Back-Office.dc.html`, "teal clinical" theme set
 **Consumed by:** #8 (kanban), #9 (week-list, month-grid, editor drawer),
 #10 (status lifecycle + approval gate)
+
+## Re-lock (2026-07-21)
+
+The implementation was rebuilt against the prototype. The rules below still
+hold; these are the points where what shipped now differs from what this
+document previously described.
+
+- **Tinted surfaces did not exist.** `bg-accent/10` and friends emitted **no
+  CSS at all** — Tailwind cannot compose an alpha over a bare `var()`, so every
+  tinted chip, badge, and column well rendered transparent. The theme colors are
+  now functions returning `color-mix(…, transparent)`. This was invisible to
+  every test, because the class name was present in the markup either way.
+- **A type scale replaced ad-hoc sizes.** The prototype works in half-pixel
+  steps (10.5px column headers, 12.5px body, 14.5px card titles). These are
+  named by role in `typeScale` (`text-body-lg`, `text-title`, `text-label-xs`).
+- **The card shell has no padding.** Each band pads itself, so the footer rule
+  runs edge to edge. §1's recipe is otherwise unchanged.
+- **Card chrome is per-variant** (`kanban` / `week` / `drawer`): the week list's
+  day gutter and the drawer's header bar already state the date and pillar, so
+  the card drops them there rather than repeating them.
+- **The topic is inline-editable** in the week list and drawer, which required
+  adding it to `ScalarField`. It renders multiline (the prototype uses a
+  single-line input, which scroll-clips a sentence-long topic).
+- **Board chrome is one row**: identity, view switcher, and period stepper. The
+  Board owns the anchored period; the calendar modes receive it.
+- **The approval gate is a centred modal**, not an inline panel under the card.
+
+Two places deliberately depart from the prototype, both because real data is
+not prototype data:
+
+- **Image-idea chips stack full-width** instead of wrapping inline. Generated
+  briefs are a sentence or two, not the prototype's three words, and wrapped
+  chips collapse into tall four-word ribbons.
+- **Pillar chips truncate.** A pillar can be a whole sentence; unconstrained,
+  it pushes past the card edge and crushes the layout beside it.
+
+Onboarding keeps its submit button **enabled** when fields are missing, where
+the prototype disables it — validation belongs to the server action, and a
+client-side gate that refuses the click makes a real rejection unreachable.
 
 This is the committed visual baseline. The **Post** card is rendered in three
 places — kanban column, week-list row, and the editor drawer — so it is

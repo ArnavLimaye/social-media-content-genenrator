@@ -45,6 +45,10 @@ function fakePost(overrides: Partial<SerializedPost> = {}): SerializedPost {
 }
 
 const noopProps = {
+  // The Board renders the clinic identity in its header row, so a name is
+  // required rather than optional — a board with no clinic on it is not a
+  // state the app can reach.
+  clinicName: "Riverbend Dental",
   onEditField: vi.fn(),
   onEditHashtags: vi.fn(),
   onEditSlide: vi.fn(),
@@ -108,13 +112,15 @@ describe("Board: week list places Posts on their scheduled dates", () => {
     const wed = within(screen.getByRole("region", { name: "Wed · Jul 22" }));
     const fri = within(screen.getByRole("region", { name: "Fri · Jul 24" }));
 
-    expect(mon.getByText("Monday post")).toBeInTheDocument();
-    expect(wed.getByText("Wednesday post")).toBeInTheDocument();
-    expect(fri.getByText("Friday post")).toBeInTheDocument();
+    // The topic is an inline-editable FIELD in the week list (and the drawer),
+    // so it is addressed by its value rather than as static text.
+    expect(mon.getByDisplayValue("Monday post")).toBeInTheDocument();
+    expect(wed.getByDisplayValue("Wednesday post")).toBeInTheDocument();
+    expect(fri.getByDisplayValue("Friday post")).toBeInTheDocument();
 
     // and not on each other's days
-    expect(mon.queryByText("Wednesday post")).not.toBeInTheDocument();
-    expect(fri.queryByText("Monday post")).not.toBeInTheDocument();
+    expect(mon.queryByDisplayValue("Wednesday post")).not.toBeInTheDocument();
+    expect(fri.queryByDisplayValue("Monday post")).not.toBeInTheDocument();
   });
 
   it("shows only the anchored week — a Post scheduled in another week stays out", () => {
@@ -125,8 +131,8 @@ describe("Board: week list places Posts on their scheduled dates", () => {
 
     renderBoard(posts, "Week");
 
-    expect(screen.getByText("This week")).toBeInTheDocument();
-    expect(screen.queryByText("Next week")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("This week")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Next week")).not.toBeInTheDocument();
   });
 });
 
@@ -160,17 +166,20 @@ describe("Board: moving between weeks", () => {
 
   it("names the anchored week and steps forward and back", () => {
     renderBoard(posts, "Week");
-    expect(screen.getByText("Week of Jul 20")).toBeInTheDocument();
-    expect(screen.getByText("Post A")).toBeInTheDocument();
+    // The stepper names the SPAN, both ends — it sits in the board header
+    // beside the view switcher, where "week of" alone would not say how far
+    // the view reaches.
+    expect(screen.getByText("Jul 20 – Jul 26")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Post A")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next week" }));
-    expect(screen.getByText("Week of Jul 27")).toBeInTheDocument();
-    expect(screen.getByText("Post B")).toBeInTheDocument();
-    expect(screen.queryByText("Post A")).not.toBeInTheDocument();
+    expect(screen.getByText("Jul 27 – Aug 2")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Post B")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Post A")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Previous week" }));
-    expect(screen.getByText("Week of Jul 20")).toBeInTheDocument();
-    expect(screen.getByText("Post A")).toBeInTheDocument();
+    expect(screen.getByText("Jul 20 – Jul 26")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Post A")).toBeInTheDocument();
   });
 
   it("reads as intentionally empty when the week has no Posts", () => {
@@ -182,7 +191,7 @@ describe("Board: moving between weeks", () => {
     // the week still renders its shape — the operator sees an empty schedule,
     // not a blank page that could equally mean a load failure
     expect(screen.getByRole("region", { name: "Mon · Aug 3" })).toBeInTheDocument();
-    expect(screen.getByText(/no posts scheduled/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing scheduled yet/i)).toBeInTheDocument();
   });
 });
 
@@ -243,7 +252,7 @@ describe("Board: month grid places Posts on their scheduled dates", () => {
     expect(screen.getByRole("gridcell", { name: "Aug 1" })).toBeInTheDocument();
     expect(screen.getByRole("gridcell", { name: "Aug 31" })).toBeInTheDocument();
     expect(screen.getAllByRole("gridcell").length % 7).toBe(0);
-    expect(screen.getByText(/no posts scheduled/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing scheduled this month/i)).toBeInTheDocument();
   });
 });
 
@@ -429,18 +438,37 @@ describe("Board: the per-Client brand overlay reaches the calendar modes", () =>
   // elements name the accent token, and the <BrandOverlay> wrapping the page
   // redefines that variable per Client — so these class names are the whole
   // mechanism, and a mode that hardcoded a color would silently stop rebranding.
-  it("paints the week-list day headings from the accent token", () => {
-    renderBoard([fakePost({ scheduledDate: "2026-07-22T09:00:00.000Z" })], "Week");
-    expect(screen.getByText("Wed · Jul 22").className).toMatch(/text-accent/);
+  it("paints the week-list day gutter's pillar from the accent token", () => {
+    // The DAY is the neutral fact and the PILLAR is the clinic's own
+    // vocabulary, so the accent lands on the pillar — that is the element the
+    // overlay has to reach in this mode.
+    render(
+      <Board
+        posts={[fakePost({ scheduledDate: "2026-07-22T09:00:00.000Z" })]}
+        today={TODAY}
+        urlView="week"
+        pillars={{
+          Monday: "Patient education",
+          Wednesday: "Behind the smile",
+          Friday: "Ask the dentist",
+        }}
+        {...noopProps}
+      />,
+    );
+    expect(screen.getByText("Behind the smile").className).toMatch(/text-accent/);
   });
 
-  it("paints the month-cell status badge from the accent token", () => {
+  it("paints the month-cell status marker from the accent token", () => {
     renderBoard(
       [fakePost({ status: "approved", scheduledDate: "2026-07-22T09:00:00.000Z" })],
       "Month",
     );
-    const cell = within(screen.getByRole("gridcell", { name: "Jul 22" }));
-    expect(cell.getByText("Approved").className).toMatch(/text-accent/);
+    // A cell has no room for a badge, so the state is a dot plus its name. The
+    // dot's color is a runtime value, which means it is an inline `var()`
+    // reference rather than a class — but it is still the TOKEN being named,
+    // which is the whole rebranding mechanism.
+    const cell = screen.getByRole("gridcell", { name: "Jul 22" });
+    expect(cell.innerHTML).toMatch(/var\(--color-accent\)/);
   });
 
   it("rebrands the card inside the drawer, which is the same card as everywhere else", () => {
@@ -451,6 +479,9 @@ describe("Board: the per-Client brand overlay reaches the calendar modes", () =>
     fireEvent.click(screen.getByRole("button", { name: /bleeding gums/i }));
 
     const drawer = within(screen.getByRole("dialog"));
-    expect(drawer.getByText("Patient Education").className).toMatch(/text-accent/);
+    // The pillar text sits in a truncating span inside the chip; the chip is
+    // the element that names the token.
+    const chip = drawer.getByText("Patient Education").parentElement!;
+    expect(chip.className).toMatch(/text-accent/);
   });
 });

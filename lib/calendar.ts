@@ -35,6 +35,15 @@ export function weekLabel(weekStart: Date): string {
   return `Week of ${MON[weekStart.getUTCMonth()]} ${weekStart.getUTCDate()}`;
 }
 
+// "Jul 20 – Jul 26" — the board header's week stepper label. Distinct from
+// `weekLabel` on purpose: the dashboard talks about "the week of" a Monday,
+// while the board is showing you a SPAN and both ends matter.
+export function weekRangeLabel(weekStart: Date): string {
+  const end = addWeeks(weekStart, 1);
+  end.setUTCDate(end.getUTCDate() - 1);
+  return `${MON[weekStart.getUTCMonth()]} ${weekStart.getUTCDate()} – ${MON[end.getUTCMonth()]} ${end.getUTCDate()}`;
+}
+
 // "July 2026" — the month-grid period heading.
 const MONTH_FULL = [
   "January", "February", "March", "April", "May", "June",

@@ -26,7 +26,10 @@ describe("themed application shell", () => {
 
     // the chrome is present
     expect(screen.getByRole("banner")).toBeInTheDocument();
-    expect(screen.getByText(/Dental Content Back-Office/i)).toBeInTheDocument();
+    // The wordmark is one lockup in two weights, so it is two elements:
+    // the product name, and its descriptor beside it.
+    expect(screen.getByText(/Dental Content/i)).toBeInTheDocument();
+    expect(screen.getByText(/back-office/i)).toBeInTheDocument();
 
     // token-driven classes on the shell surfaces (not hardcoded colors)
     const banner = screen.getByRole("banner");
@@ -52,25 +55,29 @@ describe("themed application shell", () => {
     );
   });
 
-  it("does not link to the Board before it exists", () => {
-    // The prototype's header has a Board tab, but #8/#9 have not built those
-    // screens. Shipping the link now would route the operator to a 404 — worse
-    // than the link being absent. Delete this test when #8 lands.
+  it("keeps the Board out of the global nav", () => {
+    // A board belongs to ONE clinic, so there is no clinic-less Board URL for a
+    // global nav item to point at. It is reached from a clinic's dashboard.
     render(<Shell>Walking skeleton.</Shell>);
     expect(screen.queryByRole("link", { name: /board/i })).not.toBeInTheDocument();
   });
 
-  it("toggles dark / light via [data-theme] on :root", () => {
+  it("cycles auto → light → dark → auto via [data-theme] on :root", () => {
     render(<Shell>Walking skeleton.</Shell>);
 
-    const toggle = screen.getByRole("button", { name: /toggle theme/i });
+    const toggle = screen.getByRole("button", { name: /color mode/i });
+    // No attribute is the AUTO state: prefers-color-scheme decides.
     expect(document.documentElement.getAttribute("data-theme")).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
 
     fireEvent.click(toggle);
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
 
+    // …and back to auto, which is a real choice rather than the absence of one
     fireEvent.click(toggle);
-    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    expect(document.documentElement.getAttribute("data-theme")).toBeNull();
   });
 
   it("uses the SAME token classes in light and dark — only values flip", () => {
@@ -78,7 +85,8 @@ describe("themed application shell", () => {
     const banner = screen.getByRole("banner");
     const classesBefore = banner.className;
 
-    fireEvent.click(screen.getByRole("button", { name: /toggle theme/i }));
+    fireEvent.click(screen.getByRole("button", { name: /color mode/i }));
+    fireEvent.click(screen.getByRole("button", { name: /color mode/i }));
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
 
     // toggling theme must not restyle via class swaps — the token names are shared

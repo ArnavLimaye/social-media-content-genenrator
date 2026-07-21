@@ -8,8 +8,12 @@ const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
-      colors: tailwindTheme.colors,
+      // Tailwind SUPPORTS a per-color function (it is how the opacity modifier
+      // is composed) but its published types only model plain strings, so the
+      // cast is asserting something the runtime already guarantees.
+      colors: tailwindTheme.colors as unknown as Record<string, string>,
       fontFamily: tailwindTheme.fontFamily,
+      fontSize: tailwindTheme.fontSize,
       borderRadius: tailwindTheme.borderRadius,
       spacing: tailwindTheme.spacing,
       boxShadow: tailwindTheme.boxShadow,

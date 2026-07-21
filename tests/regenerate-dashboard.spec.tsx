@@ -21,6 +21,9 @@ function fakeClient(overrides: Partial<Identity> = {}): Identity {
     name: "Lakeside Dental",
     logoUrl: null,
     colors: null,
+    location: "Bend, OR",
+    audience: "Adults 30–55",
+    pillars: ["Patient education", "Behind the smile", "Ask the dentist"],
     ...overrides,
   };
 }
@@ -41,6 +44,8 @@ describe("ClientDashboard: a week that already has a plan", () => {
         client={fakeClient()}
         blockedReason={null}
         weekPlan={weekPlan(3)}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={noop}
         onRegenerate={noop}
       />,
@@ -61,6 +66,8 @@ describe("ClientDashboard: a week that already has a plan", () => {
         client={fakeClient()}
         blockedReason={null}
         weekPlan={null}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={noop}
         onRegenerate={noop}
       />,
@@ -78,6 +85,8 @@ describe("ClientDashboard: regenerating is deliberate", () => {
         client={fakeClient()}
         blockedReason={null}
         weekPlan={weekPlan(draftCount)}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={noop}
         onRegenerate={onRegenerate}
       />,
@@ -141,6 +150,8 @@ describe("ClientDashboard: regenerating is deliberate", () => {
         client={fakeClient()}
         blockedReason={null}
         weekPlan={weekPlan(2)}
+        weekLabel="Week of Jul 20 – Jul 26"
+        tokenUsage={null}
         onGenerate={noop}
         onRegenerate={onRegenerate}
       />,

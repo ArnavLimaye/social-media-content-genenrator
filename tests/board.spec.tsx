@@ -44,6 +44,10 @@ function fakePost(overrides: Partial<SerializedPost> = {}): SerializedPost {
 }
 
 const noopProps = {
+  // The Board renders the clinic identity in its header row, so a name is
+  // required rather than optional — a board with no clinic on it is not a
+  // state the app can reach.
+  clinicName: "Riverbend Dental",
   onEditField: vi.fn(),
   onEditHashtags: vi.fn(),
   onEditSlide: vi.fn(),
@@ -113,7 +117,9 @@ describe("Board: per-Client branding costs zero component changes", () => {
     // brand-overlay.spec.tsx) — so this class is the whole contract.
     render(<Board posts={[fakePost({ pillar: "Patient Education" })]} {...noopProps} />);
 
-    const pillarBadge = screen.getByText("Patient Education");
+    // The pillar text sits in a truncating span inside the chip (a pillar can
+    // run to a whole sentence); the chip is the element naming the token.
+    const pillarBadge = screen.getByText("Patient Education").parentElement!;
     expect(pillarBadge.className).toMatch(/text-accent/);
     expect(pillarBadge.className).toMatch(/bg-accent/);
   });

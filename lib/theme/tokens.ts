@@ -68,6 +68,52 @@ const structuralTokens: TokenMap = {
   "--space-7": "48px",
 };
 
+// The type scale, lifted verbatim from the Content Back-Office design.
+//
+// The design does not use Tailwind's default 12/14/16px steps — it works in
+// half-pixel increments (10.5px column headers, 12.5px body copy, 14.5px card
+// titles). Scattering `text-[12.5px]` through the components would put the
+// scale in fifty places, so it lives here and is named by ROLE: a component
+// says what a piece of text IS, and this file decides how big that is.
+//
+// Names are deliberately distinct from Tailwind's `xs/sm/base/lg` so the two
+// scales cannot be confused at a call site.
+// A step is `[size, { lineHeight, letterSpacing }]` — Tailwind's own fontSize
+// shape. Typed explicitly rather than inferred `as const`, because Tailwind's
+// config type wants mutable tuples and a readonly inference is not assignable.
+export type TypeStep = [string, { lineHeight: string; letterSpacing?: string }];
+
+export const typeScale: Record<string, TypeStep> = {
+  // uppercase micro-labels: the "CAPTION" / "CTA" section heads
+  "label-xs": ["9.5px", { lineHeight: "1.4", letterSpacing: ".09em" }],
+  // badges: status, format, pillar
+  label: ["10px", { lineHeight: "1.4", letterSpacing: ".06em" }],
+  // column headers, form field labels, the month grid's weekday row
+  "label-lg": ["10.5px", { lineHeight: "1.4", letterSpacing: ".08em" }],
+  // slide numbers, month-cell day numbers
+  "body-xs": ["11px", { lineHeight: "1.45" }],
+  // image-idea chips, footer notes
+  "body-sm": ["11.5px", { lineHeight: "1.45" }],
+  // secondary/muted supporting copy
+  body: ["12px", { lineHeight: "1.45" }],
+  // the card's default reading size — caption, hook, slide description
+  "body-lg": ["12.5px", { lineHeight: "1.5" }],
+  // buttons, inputs, dialog text
+  control: ["13px", { lineHeight: "1.45" }],
+  // kanban card title
+  "title-sm": ["14px", { lineHeight: "1.35" }],
+  // week-list card title
+  title: ["14.5px", { lineHeight: "1.35" }],
+  // drawer card title
+  "title-lg": ["15px", { lineHeight: "1.35" }],
+  // board heading, dialog heading
+  "heading-sm": ["16px", { lineHeight: "1.3" }],
+  // screen heading
+  heading: ["20px", { lineHeight: "1.3", letterSpacing: "-.01em" }],
+  // the token-usage stat
+  stat: ["28px", { lineHeight: "1.1", letterSpacing: "-.02em" }],
+};
+
 export const lightTokens: TokenMap = {
   "--color-primary": "#0f766e",
   "--color-on-primary": "#ffffff",
@@ -110,27 +156,55 @@ export const darkTokens: TokenMap = {
 
 // Tailwind theme, mapped to the CSS var NAMES (not values). The values stay in
 // the CSS custom properties so this file remains the single source of color.
+//
+// Each color is a FUNCTION, not a bare string, so Tailwind's opacity modifier
+// works. This is load-bearing: a plain `"var(--color-accent)"` cannot carry an
+// alpha, so Tailwind silently emits NO RULE for `bg-accent/10` — the tinted
+// chip/badge/column surfaces the design is built from would all render
+// transparent, and no test would catch it because the class name is still
+// present in the markup.
+//
+// `color-mix(... , transparent)` is the same construction the design uses for
+// every tint, so `bg-accent/10` here and `color-mix(in srgb, var(--color-accent)
+// 10%, transparent)` there resolve to the identical color — including when the
+// per-Client brand overlay replaces `--color-accent` with a clinic's own hex.
+// `opacityValue` is not always a number: for a bare `text-muted` Tailwind hands
+// in the literal string `var(--tw-text-opacity)`. That is unusable inside
+// `color-mix`, so anything non-numeric falls back to the opaque token —
+// which is exactly what a modifier-less utility means anyway.
+function tokenColor(varName: string) {
+  return ({ opacityValue }: { opacityValue?: string }) => {
+    const alpha = Number(opacityValue);
+    if (!Number.isFinite(alpha) || alpha === 1) return `var(${varName})`;
+    // rounded, because `0.03 * 100` is 3.0000000000000004 in binary floating
+    // point and that would land verbatim in the emitted CSS
+    const pct = Math.round(alpha * 1e4) / 100;
+    return `color-mix(in srgb, var(${varName}) ${pct}%, transparent)`;
+  };
+}
+
 export const tailwindTheme = {
   colors: {
-    primary: "var(--color-primary)",
-    "on-primary": "var(--color-on-primary)",
-    accent: "var(--color-accent)",
-    "on-accent": "var(--color-on-accent)",
-    surface: "var(--color-surface)",
-    "surface-raised": "var(--color-surface-raised)",
-    text: "var(--color-text)",
+    primary: tokenColor("--color-primary"),
+    "on-primary": tokenColor("--color-on-primary"),
+    accent: tokenColor("--color-accent"),
+    "on-accent": tokenColor("--color-on-accent"),
+    surface: tokenColor("--color-surface"),
+    "surface-raised": tokenColor("--color-surface-raised"),
+    text: tokenColor("--color-text"),
     // Keyed `muted` (not `text-muted`) so call sites read `text-muted`, not
     // `text-text-muted`. The TOKEN name stays `--color-text-muted` — it is
     // muted *text*, never a border. Borders use `border-border` below.
-    muted: "var(--color-text-muted)",
-    border: "var(--color-border)",
-    success: "var(--color-success)",
-    warning: "var(--color-warning)",
-    danger: "var(--color-danger)",
+    muted: tokenColor("--color-text-muted"),
+    border: tokenColor("--color-border"),
+    success: tokenColor("--color-success"),
+    warning: tokenColor("--color-warning"),
+    danger: tokenColor("--color-danger"),
   },
   fontFamily: {
     sans: "var(--font-sans)",
   },
+  fontSize: typeScale,
   borderRadius: {
     DEFAULT: "var(--radius)",
     sm: "var(--radius-sm)",
