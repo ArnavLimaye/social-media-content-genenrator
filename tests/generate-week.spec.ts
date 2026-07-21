@@ -44,6 +44,8 @@ const COPYWRITER_OUTPUT = {
     {
       heading: "Bleeding gums? Read this",
       description: "3 causes you can spot at home",
+      imagePrompt:
+        'Healthy gums beside inflamed ones, so the difference is obvious. Text reads exactly: "BLEEDING GUMS AREN\'T NORMAL". Square 1:1.',
       imageIdeas: [
         { type: "photo", idea: "close-up of healthy vs inflamed gumline" },
         { type: "creative", idea: "icon trio: floss, brush, rinse" },
@@ -202,6 +204,9 @@ describe("generateWeek: Planner + Copywriter → Plan + 3 draft Posts", () => {
       expect(slides[0]).toMatchObject({ heading: expect.any(String), description: expect.any(String) });
       expect(slides[0].imageIdeas).toHaveLength(2);
       expect(slides[0].imageIdeas[0]).toMatchObject({ type: "photo", idea: expect.any(String) });
+      // The asset prompt survives the slides-document write verbatim — it is
+      // pasted into an external tool, so any mangling reaches the operator.
+      expect(slides[0].imagePrompt).toBe(COPYWRITER_OUTPUT.slides[0].imagePrompt);
 
       const hashtags = p.hashtags as unknown as string[];
       expect(hashtags).toContain("#austindentist");

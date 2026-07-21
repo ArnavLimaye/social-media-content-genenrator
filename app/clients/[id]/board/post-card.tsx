@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useLayoutEffect } from "react";
-import type { SerializedPost, Slide, ReviewFlag } from "@/lib/posts";
+import type { SerializedPost, Slide, SlideField, ReviewFlag } from "@/lib/posts";
 import { postState } from "@/lib/post-state";
 import { canApprove, isEditable, needsAcknowledgment } from "@/lib/post-status";
 import { dayLabel } from "@/lib/calendar";
@@ -28,7 +28,7 @@ export type PostCardProps = {
   onEditSlide: (
     postId: string,
     slideIndex: number,
-    field: "heading" | "description",
+    field: SlideField,
     value: string,
   ) => void;
   // Lifecycle actions (#10). `acknowledged` is the operator's explicit sign-off
@@ -204,7 +204,7 @@ function SlideList({
   slides: Slide[];
   topic: string;
   readOnly: boolean;
-  onEditSlide: (index: number, field: "heading" | "description", value: string) => void;
+  onEditSlide: (index: number, field: SlideField, value: string) => void;
 }) {
   return (
     <ol className="flex flex-col gap-2">
@@ -230,6 +230,12 @@ function SlideList({
               onCommit={(v) => onEditSlide(i, "description", v)}
               className="text-sm text-muted"
             />
+            <AssetPrompt
+              prompt={slide.imagePrompt}
+              label={`Slide ${i + 1} asset prompt — ${topic}`}
+              readOnly={readOnly}
+              onCommit={(v) => onEditSlide(i, "imagePrompt", v)}
+            />
             <ImageIdeaChips ideas={slide.imageIdeas} />
           </div>
         </li>
@@ -238,24 +244,108 @@ function SlideList({
   );
 }
 
+// The slide's primary asset prompt: what the operator pastes into Flow /
+// ChatGPT / Midjourney to get this exact slide. Given top billing above the
+// alternates and editable inline, because it is the field most likely to need
+// a tweak (a clinic name spelled right, a colour swapped) before it is used.
+//
+// Slides generated before `imagePrompt` existed have none. That renders as an
+// explicit note rather than an empty gap — silence would read as "this slide
+// needs no asset", which is never true.
+function AssetPrompt({
+  prompt,
+  label,
+  readOnly,
+  onCommit,
+}: {
+  prompt: string | undefined;
+  label: string;
+  readOnly: boolean;
+  onCommit: (value: string) => void;
+}) {
+  if (!prompt) {
+    return (
+      <p className="text-xs italic text-muted">
+        No asset prompt — regenerate this post to get one.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1 rounded-sm border border-accent/40 bg-accent/5 p-2">
+      <div className="flex items-center gap-2">
+        <span className="rounded-pill bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-on-accent">
+          asset prompt
+        </span>
+        <CopyIdeaButton idea={prompt} label={label} />
+      </div>
+      <InlineText
+        ariaLabel={label}
+        value={prompt}
+        multiline
+        readOnly={readOnly}
+        onCommit={onCommit}
+        className="text-xs leading-snug text-text"
+      />
+    </div>
+  );
+}
+
 // Image-idea chips encode type by color AND repeat the kind as uppercase text
-// inside, so the distinction is never color-only (design-lock §2).
+// inside, so the distinction is never color-only (design-lock §2). These are
+// ALTERNATE directions — the primary is the asset prompt above.
+//
+// The brief itself is rendered beside the chip, not hidden behind it. These are
+// paste-ready image-tool prompts (a full generation prompt for `creative`, a
+// shot brief for `photo`), so a card showing only the word "creative" tells the
+// operator nothing they can act on — the text IS the deliverable. Each carries
+// a copy button because pasting it into an image tool is the whole workflow.
 function ImageIdeaChips({ ideas }: { ideas: Slide["imageIdeas"] }) {
   return (
-    <ul className="flex flex-wrap gap-1">
+    <ul className="flex flex-col gap-1.5">
       {ideas.map((idea, i) => (
-        <li
-          key={i}
-          className={
-            idea.type === "creative"
-              ? "rounded-pill border border-accent bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent"
-              : "rounded-pill border border-border bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted"
-          }
-        >
-          {idea.type}
+        <li key={i} className="flex items-start gap-1.5">
+          <span
+            className={
+              idea.type === "creative"
+                ? "shrink-0 rounded-pill border border-accent bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent"
+                : "shrink-0 rounded-pill border border-border bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted"
+            }
+          >
+            {idea.type}
+          </span>
+          <span className="text-xs leading-snug text-muted">{idea.idea}</span>
+          <CopyIdeaButton idea={idea.idea} />
         </li>
       ))}
     </ul>
+  );
+}
+
+// Copy state is per-button and self-clearing. Clipboard access can reject
+// (insecure context, denied permission); the button says so rather than
+// silently claiming success the operator would only catch on paste.
+function CopyIdeaButton({ idea, label }: { idea: string; label?: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(idea);
+      setState("copied");
+    } catch {
+      setState("failed");
+    }
+    setTimeout(() => setState("idle"), 2000);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={label ? `Copy ${label}` : `Copy image idea: ${idea}`}
+      className="ml-auto shrink-0 rounded-pill border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted hover:text-text"
+    >
+      {state === "copied" ? "copied" : state === "failed" ? "failed" : "copy"}
+    </button>
   );
 }
 

@@ -55,6 +55,10 @@ export type CopywriterOutput = {
   slides: Array<{
     heading: string;
     description: string;
+    // Optional here for the same reason as on `Slide` (lib/posts.ts): a model
+    // that omits it yields a slide without an asset prompt, which the board
+    // renders as "no prompt" — not a failed generation.
+    imagePrompt?: string;
     imageIdeas: Array<{ type: string; idea: string }>;
   }>;
   caption: string;

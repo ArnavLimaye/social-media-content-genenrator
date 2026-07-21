@@ -45,9 +45,30 @@ export function buildPlannerSystem(
     )
     .join(",\n");
 
+  // Left-to-right, the three formats are genuinely different deliverables, not
+  // synonyms. Without spelling that out the model collapses onto carousel/reel
+  // and never picks infographic, because "carousel" is the safe default for
+  // anything educational. Defining what each one IS makes the choice real.
+  const formats = `Formats (pick the one that fits the topic — all three are in play):
+- "carousel": a sequence of 4-8 slides that build an argument or walk through steps. Use when the topic needs ORDER — a progression, a myth-then-truth, a before/during/after.
+- "reel": a short spoken-to-camera or demonstrative video. Use when the topic needs a PERSON — a demonstration, a quick answer, personality, a clinic moment.
+- "infographic": ONE dense image the viewer reads in place — a comparison table, a labelled anatomical diagram, a chart, a checklist, a timeline. Use when the topic is a set of facts that make sense SIMULTANEOUSLY rather than in sequence: "how much sugar is in these 6 drinks", "what each tooth surface does", "brushing timeline by age".
+
+Choosing: if the topic would read fine as a single wall chart pinned in a waiting room, it is an infographic, NOT a carousel. Do not default to carousel for every educational topic.`;
+
+  // Format variety is only enforceable when planning a full week. A single-day
+  // regeneration (issue #11) has nothing to vary against, so the rule is
+  // omitted rather than stated and immediately violated.
+  const varietyRule =
+    days.length > 1
+      ? `\n- Vary the format across the ${countWord(days.length)} posts. Do not return the same format for every day, and do not return only carousel + reel — a week that never uses infographic is a failed plan.`
+      : "";
+
   return `You are the content planner for a clinic's social media. You produce a content plan: exactly ${countWord(days.length)} post ${days.length === 1 ? "topic" : "topics"}, one for each of these days — ${listDays(days)} — matching that day's pillar.
 
 ${domainProfile}
+
+${formats}
 
 You output ONLY valid JSON matching this exact shape, with no surrounding text, no explanation, and no markdown code fences:
 
@@ -60,7 +81,7 @@ ${shape}
 Rules:
 - Plan ONLY the ${days.length === 1 ? "day" : "days"} listed above. Do not add posts for any other day.
 - Topics must be SPECIFIC ("Why bleeding gums are not normal — 3 causes"), never vague ("dental health tips").
-- Match the format to the pillar: education pillars favour carousels/infographics; engagement pillars favour reels/interactive formats.
+- Choose the format from the topic's SHAPE using the definitions above, not from the pillar's name. An education pillar is not automatically a carousel — a fact-dense education topic is an infographic.${varietyRule}
 - Do NOT reuse or lightly reword any topic listed in the "recently used" set. Pick genuinely new angles.
 - Stay within the domain scope and follow the medical guardrail above strictly.`;
 }

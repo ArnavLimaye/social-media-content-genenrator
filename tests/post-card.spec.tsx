@@ -27,11 +27,15 @@ function fakePost(overrides: Partial<SerializedPost> = {}): SerializedPost {
       {
         heading: "Bleeding gums? Read this",
         description: "3 causes you can spot at home",
+        imagePrompt:
+          'Healthy gums beside inflamed ones, so the difference is obvious. Text reads exactly: "BLEEDING GUMS AREN\'T NORMAL". Square 1:1.',
         imageIdeas: [
           { type: "photo", idea: "close-up of healthy vs inflamed gumline" },
           { type: "creative", idea: "icon trio: floss, brush, rinse" },
         ],
       },
+      // Deliberately has no `imagePrompt` — the pre-imagePrompt slide shape,
+      // which stored Posts still carry and the card must still render.
       {
         heading: "Cause 1",
         description: "Plaque buildup along the gumline",
@@ -139,6 +143,49 @@ describe("PostCard: read mode renders the locked card", () => {
     expect(chips.map((c) => c.textContent)).toEqual(
       expect.arrayContaining(["photo", "creative", "creative"]),
     );
+  });
+
+  // The brief is the deliverable — it is a paste-ready image-tool prompt, so a
+  // card that shows only the type chip gives the operator nothing to act on.
+  it("renders each image idea's brief text, with a copy button per idea", () => {
+    render(<PostCard post={fakePost()} {...noopProps} />);
+
+    expect(screen.getByText("close-up of healthy vs inflamed gumline")).toBeInTheDocument();
+    expect(screen.getByText("icon trio: floss, brush, rinse")).toBeInTheDocument();
+    expect(screen.getByText("diagram of plaque layer")).toBeInTheDocument();
+
+    expect(
+      screen.getByLabelText("Copy image idea: diagram of plaque layer"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Copy image idea:/ })).toHaveLength(3);
+  });
+
+  // The asset prompt is the slide's actual deliverable — the string pasted
+  // into an external image/video tool — so it renders editable and copyable.
+  it("renders the slide's asset prompt, editable and copyable", () => {
+    const onEditSlide = vi.fn();
+    render(<PostCard post={fakePost()} {...noopProps} onEditSlide={onEditSlide} />);
+
+    const field = screen.getByLabelText(/^Slide 1 asset prompt —/);
+    expect(field).toHaveDisplayValue(
+      'Healthy gums beside inflamed ones, so the difference is obvious. Text reads exactly: "BLEEDING GUMS AREN\'T NORMAL". Square 1:1.',
+    );
+    expect(
+      screen.getByRole("button", { name: /^Copy Slide 1 asset prompt —/ }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(field, { target: { value: "a reworked prompt" } });
+    fireEvent.blur(field);
+    expect(onEditSlide).toHaveBeenCalledWith("p1", 0, "imagePrompt", "a reworked prompt");
+  });
+
+  // Posts generated before `imagePrompt` existed have slides without it. Those
+  // slides must say so, not render a silent gap that reads as "needs no asset".
+  it("names the gap on a slide that predates asset prompts", () => {
+    render(<PostCard post={fakePost()} {...noopProps} />);
+
+    expect(screen.queryByLabelText(/^Slide 2 asset prompt —/)).not.toBeInTheDocument();
+    expect(screen.getByText(/No asset prompt — regenerate this post/)).toBeInTheDocument();
   });
 });
 

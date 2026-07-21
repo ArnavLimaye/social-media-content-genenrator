@@ -25,6 +25,15 @@ export type ImageIdea = { type: ImageIdeaType; idea: string };
 export type Slide = {
   heading: string;
   description: string;
+  // The primary asset prompt: one self-contained instruction the operator
+  // pastes into an external tool (Google Flow, ChatGPT images, Midjourney) to
+  // get THIS slide as designed — including, verbatim, the text that must be
+  // rendered inside the image. `imageIdeas` are alternate directions for the
+  // same slide; this is the one that produces the asset the copy assumes.
+  //
+  // Optional because it postdates the first generations: Posts written before
+  // it existed have slides without the field, and they must keep rendering.
+  imagePrompt?: string;
   imageIdeas: ImageIdea[];
 };
 
@@ -53,8 +62,10 @@ export type SerializedPost = Omit<
 export type ScalarField = "hook" | "caption" | "cta";
 
 // The fields of a single Slide an inline edit can target. Image ideas are not
-// in this set — the issue scopes editing to heading + description.
-export type SlideField = "heading" | "description";
+// in this set — the issue scopes editing to heading + description, plus the
+// asset prompt: it is the slide's deliverable and the field most likely to
+// need a hand-tweak before it goes into an image tool.
+export type SlideField = "heading" | "description" | "imagePrompt";
 
 // Pure, immutable: rewrite one slide's field and return a NEW slides document,
 // preserving every other slide and all image ideas (ADR-0001). The issue's
